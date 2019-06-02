@@ -41,14 +41,14 @@ Set the base path.
 
 sub base : Chained( '/base' ) : PathPart( 'admin/news' ) : CaptureArgs( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	# Check to make sure user has the required permissions
-	return 0 unless $self->user_exists_and_can($c, {
+	return 0 unless $self->user_exists_and_can( $c, {
 		action   => 'add/edit/delete news items',
 		role     => 'News Admin',
 		redirect => '/news'
 	});
-	
+
 	# Stash the controller name
 	$c->stash->{ admin_controller } = 'News';
 }
@@ -62,7 +62,7 @@ Display list of news items
 
 sub index : Chained( 'base' ) : PathPart( '' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	$c->go( 'list_items' );
 }
 
@@ -75,12 +75,12 @@ List news items.
 
 sub list_items : Chained( 'base' ) : PathPart( 'list' ) : OptionalArgs( 2 ) {
 	my ( $self, $c, $page, $count ) = @_;
-	
+
 	$page  ||= 1;
 	$count ||= 20;
-	
+
 	my $posts = $self->get_posts( $c, $page, $count );
-	
+
 	$c->stash->{ news_items } = $posts;
 }
 
@@ -91,7 +91,7 @@ sub list_items : Chained( 'base' ) : PathPart( 'list' ) : OptionalArgs( 2 ) {
 
 sub add_item : Chained( 'base' ) : PathPart( 'add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	$c->stash->{ template } = 'admin/news/edit_item.tt';
 }
 
@@ -102,7 +102,7 @@ sub add_item : Chained( 'base' ) : PathPart( 'add' ) : Args( 0 ) {
 
 sub add_do : Chained( 'base' ) : PathPart( 'add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	# Tidy up the URL title
 	my $url_title = $c->request->param( 'url_title' );
 	$url_title  ||= $c->request->param( 'title'     );
@@ -110,23 +110,22 @@ sub add_do : Chained( 'base' ) : PathPart( 'add-do' ) : Args( 0 ) {
 	$url_title   =~ s/-+/-/g;
 	$url_title   =~ s/[^-\w]//g;
 	$url_title   =  lc $url_title;
-	
+
 	# TODO: catch and fix duplicate year/month/url_title combinations
-	
+
 	# Add the item
-	my $hidden = $c->request->param( 'hidden' ) ? 1 : 0;
 	my $item = $c->model( 'DB::NewsItem' )->create({
 		author      => $c->user->id,
 		title       => $c->request->param( 'title'       ),
-		url_title   => $url_title || undef,
+		url_title   => $url_title,
 		body        => $c->request->param( 'body'        ),
 		related_url => $c->request->param( 'related_url' ),
-		hidden      => $hidden,
+		hidden      => $c->request->param( 'hidden'      ) ? 1 : 0,
 	});
-	
+
 	# Shove a confirmation message into the flash
 	$c->flash->{status_msg} = 'News item added';
-	
+
 	# Bounce back to the 'edit' page
 	$c->response->redirect( $c->uri_for( 'edit', $item->id ) );
 }
@@ -138,7 +137,7 @@ sub add_do : Chained( 'base' ) : PathPart( 'add-do' ) : Args( 0 ) {
 
 sub edit_item : Chained( 'base' ) : PathPart( 'edit' ) : Args( 1 ) {
 	my ( $self, $c, $item_id ) = @_;
-	
+
 	# Stash the news item
 	$c->stash->{ news_item } = $c->model( 'DB::NewsItem' )->find({
 		id => $item_id,
@@ -152,19 +151,19 @@ sub edit_item : Chained( 'base' ) : PathPart( 'edit' ) : Args( 1 ) {
 
 sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 1 ) {
 	my ( $self, $c, $item_id ) = @_;
-	
+
 	# Process deletions
-	if ( defined $c->request->params->{ delete } && $c->request->param( 'delete' ) eq 'Delete' ) {
+	if ( defined $c->request->param( 'delete' ) ) {
 		$c->model( 'DB::NewsItem' )->search({ id => $item_id })->delete;
-		
+
 		# Shove a confirmation message into the flash
 		$c->flash->{ status_msg } = 'News item deleted';
-		
+
 		# Bounce to the default page
 		$c->response->redirect( $c->uri_for( 'list' ) );
 		return;
 	}
-	
+
 	# Tidy up the URL title
 	my $url_title = $c->request->param( 'url_title' );
 	$url_title  ||= $c->request->param( 'title'     );
@@ -172,30 +171,26 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 1 ) {
 	$url_title   =~ s/-+/-/g;
 	$url_title   =~ s/[^-\w]//g;
 	$url_title   =  lc $url_title;
-	
+
 	# TODO: catch and fix duplicate year/month/url_title combinations
-	
-	my $posted;
-	if ( $c->request->param( 'posted_date' ) ) {
-		$posted = $c->request->param( 'posted_date' ) .' '. $c->request->param( 'posted_time' );
-	}
-	
+
+	my $posted = $c->request->param( 'posted_date' ) .' '. $c->request->param( 'posted_time' );
+
 	# Perform the update
-	my $hidden = $c->request->param( 'hidden' ) ? 1 : 0;
 	my $item = $c->model( 'DB::NewsItem' )->find({
 		id => $item_id,
 	})->update({
 		title       => $c->request->param( 'title'       ),
-		url_title   => $url_title || undef,
+		url_title   => $url_title,
 		body        => $c->request->param( 'body'        ),
 		related_url => $c->request->param( 'related_url' ),
 		posted      => $posted,
-		hidden      => $hidden,
+		hidden      => $c->request->param( 'hidden'      ) ? 1 : 0,
 	});
-	
+
 	# Shove a confirmation message into the flash
 	$c->flash->{status_msg} = 'News item updated';
-	
+
 	# Bounce back to the 'edit' page
 	$c->response->redirect( $c->uri_for( 'edit', $item_id ) );
 }
@@ -211,10 +206,10 @@ Get the specified number of recent news posts.
 
 sub get_posts {
 	my ( $self, $c, $page, $count ) = @_;
-	
+
 	$page  ||= 1;
 	$count ||= 20;
-	
+
 	my @posts = $c->model( 'DB::NewsItem' )->search(
 		{},
 		{
@@ -223,7 +218,7 @@ sub get_posts {
 			rows     => $count,
 		},
 	);
-	
+
 	return \@posts;
 }
 

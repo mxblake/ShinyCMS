@@ -1,6 +1,7 @@
 package ShinyCMS::Controller::Admin::Events;
 
 use Moose;
+use MooseX::Types::Moose qw/ Int /;
 use namespace::autoclean;
 
 BEGIN { extends 'ShinyCMS::Controller'; }
@@ -17,6 +18,13 @@ Controller for ShinyCMS events admin features.
 =cut
 
 
+has page_size => (
+	isa     => Int,
+	is      => 'ro',
+	default => 20,
+);
+
+
 =head1 METHODS
 
 =head2 base
@@ -25,17 +33,17 @@ Controller for ShinyCMS events admin features.
 
 sub base : Chained( '/base' ) : PathPart( 'admin/events' ) : CaptureArgs( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	# Check to make sure user has the required permissions
-	return 0 unless $self->user_exists_and_can($c, {
-		action   => 'add/edit/delete events', 
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete events',
 		role     => 'Events Admin',
 		redirect => '/events'
 	});
-	
+
 	# Stash the upload_dir setting
 	$c->stash->{ upload_dir } = $c->config->{ upload_dir };
-	
+
 	# Stash the controller name
 	$c->stash->{ admin_controller } = 'Events';
 }
@@ -49,38 +57,8 @@ Forward to the list of events
 
 sub index : Chained( 'base' ) : PathPart( '' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	$c->go( 'list_events' );
-}
-
-
-=head2 get_events
-
-Get the full list of events from the database
-
-=cut
-
-sub get_events {
-	my ( $self, $c, $count, $start_date, $end_date ) = @_;
-	
-	$count ||= 10;
-	
-	# Slightly confusing interaction of start and end dates here.  We want 
-	# to return any event that finishes before the search range starts, or 
-	# starts before the search range finishes.
-	my $where = {};
-	$where->{ end_date   } = { '>=' => $start_date->ymd } if $start_date;
-	$where->{ start_date } = { '<=' => $end_date->ymd   } if $end_date;
-	
-	my @events = $c->model( 'DB::Event' )->search(
-		$where,
-		{
-			order_by => { -desc => [ 'start_date', 'end_date' ] },
-			rows     => $count,
-		},
-	);
-	
-	return \@events;
 }
 
 
@@ -90,11 +68,18 @@ List all events
 
 =cut
 
-sub list_events : Chained( 'base' ) : PathPart( '' ) : Args( 0 ) {
+sub list_events : Chained( 'base' ) : PathPart( 'list' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
-	my $events = $self->get_events( $c, 50 );
-	
+
+	my $events = $c->model( 'DB::Event' )->search(
+		{},
+		{
+			order_by => { -desc => [ 'start_date', 'end_date' ] },
+			rows     => $self->page_size,
+			page     => $c->request->param('page') || 1,
+		}
+	);
+
 	$c->stash->{ events } = $events;
 }
 
@@ -107,10 +92,10 @@ Add a new event
 
 sub add_event : Chained( 'base' ) : PathPart( 'add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	# Stash a list of images present in the event-images folder
 	$c->stash->{ images } = $c->controller( 'Root' )->get_filenames( $c, 'event-images' );
-	
+
 	$c->stash->{ template } = 'admin/events/edit_event.tt';
 }
 
@@ -123,10 +108,10 @@ Edit an existing event
 
 sub edit_event : Chained( 'base' ) : PathPart( 'edit' ) : Args( 1 ) {
 	my ( $self, $c, $event_id ) = @_;
-	
+
 	# Stash a list of images present in the event-images folder
 	$c->stash->{ images } = $c->controller( 'Root' )->get_filenames( $c, 'event-images' );
-	
+
 	$c->stash->{ event  } = $c->model( 'DB::Event' )->find({
 		id => $event_id,
 	});
@@ -141,10 +126,10 @@ Process adding an event
 
 sub add_event_do : Chained( 'base' ) : PathPart( 'add-event-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	my $start_date = $c->request->param( 'start_date' ) .' '. $c->request->param( 'start_time' );
 	my $end_date   = $c->request->param( 'end_date'   ) .' '. $c->request->param( 'end_time'   );
-	
+
 	# Sanitise the url_name
 	my $url_name = $c->request->param( 'url_name' );
 	$url_name  ||= $c->request->param( 'name'     );
@@ -152,7 +137,7 @@ sub add_event_do : Chained( 'base' ) : PathPart( 'add-event-do' ) : Args( 0 ) {
 	$url_name   =~ s/-+/-/g;
 	$url_name   =~ s/[^-\w]//g;
 	$url_name   =  lc $url_name;
-	
+
 	# Add the item
 	my $item = $c->model( 'DB::Event' )->create({
 		name         => $c->request->param( 'name'         ),
@@ -167,10 +152,10 @@ sub add_event_do : Chained( 'base' ) : PathPart( 'add-event-do' ) : Args( 0 ) {
 		link         => $c->request->param( 'link'         ),
 		booking_link => $c->request->param( 'booking_link' ),
 	});
-	
+
 	# Shove a confirmation message into the flash
 	$c->flash->{status_msg} = 'Event added';
-	
+
 	# Bounce back to the 'edit' page
 	$c->response->redirect( $c->uri_for( 'edit', $item->id ) );
 }
@@ -184,22 +169,22 @@ Process editing an event
 
 sub edit_event_do : Chained( 'base' ) : PathPart( 'edit-event-do' ) : Args( 1 ) {
 	my ( $self, $c, $event_id ) = @_;
-	
+
 	# Process deletions
-	if ( defined $c->request->params->{ delete } && $c->request->param( 'delete' ) eq 'Delete' ) {
+	if ( defined $c->request->param( 'delete' ) ) {
 		$c->model( 'DB::Event' )->search({ id => $event_id })->delete;
-		
+
 		# Shove a confirmation message into the flash
 		$c->flash->{ status_msg } = 'Event deleted';
-		
+
 		# Bounce to the default page
 		$c->response->redirect( $c->uri_for( '/admin/events' ) );
 		return;
 	}
-	
+
 	my $start_date = $c->request->param( 'start_date' ) .' '. $c->request->param( 'start_time' );
 	my $end_date   = $c->request->param( 'end_date'   ) .' '. $c->request->param( 'end_time'   );
-	
+
 	# Sanitise the url_name
 	my $url_name = $c->request->param( 'url_name' );
 	$url_name  ||= $c->request->param( 'name'     );
@@ -207,7 +192,7 @@ sub edit_event_do : Chained( 'base' ) : PathPart( 'edit-event-do' ) : Args( 1 ) 
 	$url_name   =~ s/-+/-/g;
 	$url_name   =~ s/[^-\w]//g;
 	$url_name   =  lc $url_name;
-	
+
 	# Add the item
 	my $item = $c->model( 'DB::Event' )->find({
 		id => $event_id,
@@ -224,10 +209,10 @@ sub edit_event_do : Chained( 'base' ) : PathPart( 'edit-event-do' ) : Args( 1 ) 
 		link         => $c->request->param( 'link'         ),
 		booking_link => $c->request->param( 'booking_link' ),
 	});
-	
+
 	# Shove a confirmation message into the flash
 	$c->flash->{status_msg} = 'Event updated';
-	
+
 	# Bounce back to the 'edit' page
 	$c->response->redirect( $c->uri_for( '/admin/events/edit', $item->id ) );
 }

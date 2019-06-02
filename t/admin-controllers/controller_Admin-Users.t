@@ -2,10 +2,10 @@
 # File:		t/admin-controllers/controller_Admin-Users.t
 # Project:	ShinyCMS
 # Purpose:	Tests for user admin features
-# 
+#
 # Author:	Denny de la Haye <2019@denny.me>
 # Copyright (c) 2009-2019 Denny de la Haye
-# 
+#
 # ShinyCMS is free software; you can redistribute it and/or modify it
 # under the terms of either the GPL 2.0 or the Artistic License 2.0
 # ===================================================================
@@ -14,14 +14,14 @@ use strict;
 use warnings;
 
 use Test::More;
-use Test::WWW::Mechanize::Catalyst;
+use Test::WWW::Mechanize::Catalyst::WithContext;
 
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
-my( $test_admin, $test_admin_password ) = create_test_admin();
+my $test_admin = create_test_admin();
 
-my $t = Test::WWW::Mechanize::Catalyst->new( catalyst_app => 'ShinyCMS' );
+my $t = Test::WWW::Mechanize::Catalyst::WithContext->new( catalyst_app => 'ShinyCMS' );
 
 # Try to fetch the admin area, expecting to fail and be aked to log in first
 $t->get_ok(
@@ -37,7 +37,7 @@ $t->submit_form_ok({
 	form_id => 'login',
     fields => {
 		username => $test_admin->username,
-    	password => $test_admin_password,
+    	password => $test_admin->username,
 	}},
 	'Submit login form'
 );

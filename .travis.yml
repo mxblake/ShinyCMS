@@ -27,7 +27,7 @@ before_script:
     - bin/database/build-with-demo-data
 
 script:
-    - bin/dev-tools/check-test-coverage
+    - bin/test/run-tests-with-coverage
 
 after_success:
     - cover -report codecov

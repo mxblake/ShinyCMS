@@ -1,10 +1,22 @@
+# ===================================================================
+# File:		t/controllers/controller-Pages.t
+# Project:	ShinyCMS
+# Purpose:	Tests for ShinyCMS page features
+#
+# Author:	Denny de la Haye <2019@denny.me>
+# Copyright (c) 2009-2019 Denny de la Haye
+#
+# ShinyCMS is free software; you can redistribute it and/or modify it
+# under the terms of either the GPL 2.0 or the Artistic License 2.0
+# ===================================================================
+
 use strict;
 use warnings;
 
 use Test::More;
-use Test::WWW::Mechanize::Catalyst;
+use Test::WWW::Mechanize::Catalyst::WithContext;
 
-my $t = Test::WWW::Mechanize::Catalyst->new( catalyst_app => 'ShinyCMS' );
+my $t = Test::WWW::Mechanize::Catalyst::WithContext->new( catalyst_app => 'ShinyCMS' );
 
 # Fetch site homepage a few different ways, to test default section/page code
 $t->get_ok(
@@ -48,16 +60,7 @@ $t->title_is(
     'About ShinyCMS - ShinySite',
     'Loaded about page'
 );
-# Test a form handler
-$t->follow_link_ok(
-    { text => 'Contact Us' },
-    'Follow link to page with contact form'
-);
-$t->title_is(
-    'Contact Us - ShinySite',
-    'Loaded contact page'
-);
 
-
+# ...
 
 done_testing();

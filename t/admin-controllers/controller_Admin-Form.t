@@ -2,10 +2,10 @@
 # File:		t/admin-controllers/controller_Admin-Form.t
 # Project:	ShinyCMS
 # Purpose:	Tests for form handler admin features
-# 
+#
 # Author:	Denny de la Haye <2019@denny.me>
 # Copyright (c) 2009-2019 Denny de la Haye
-# 
+#
 # ShinyCMS is free software; you can redistribute it and/or modify it
 # under the terms of either the GPL 2.0 or the Artistic License 2.0
 # ===================================================================
@@ -18,9 +18,15 @@ use Test::More;
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
-create_test_admin();
+my $admin = create_test_admin(
+    'form_test_admin',
+    'CMS Page Editor',
+    'CMS Page Admin',
+    'CMS Form Admin'
+);
 
-my $t = login_test_admin() or die 'Failed to log in as admin';
+my $t = login_test_admin( $admin->username, $admin->username )
+    or die 'Failed to log in as CMS Form Admin';
 
 $t->get_ok(
     '/admin',
@@ -46,7 +52,7 @@ $t->title_is(
 	'Edit Form Handler - ShinyCMS',
 	'Redirected to edit page for new form handler'
 );
-my @inputs1 = $t->grep_inputs({ name => qr/url_name$/ });
+my @inputs1 = $t->grep_inputs({ name => qr/^url_name$/ });
 ok(
     $inputs1[0]->value eq 'new-form-handler',
     'Verified that new form handler was created'
@@ -55,7 +61,9 @@ ok(
 $t->submit_form_ok({
     form_id => 'edit_form',
     fields => {
-        name => 'Updated form handler!'
+        name => 'Updated form handler!',
+        url_name => '',
+        has_captcha => 1,
     }},
     'Submitted form to update form handler'
 );
@@ -84,7 +92,21 @@ $t->content_lacks(
     'Updated form handler!',
     'Verified that form handler was deleted'
 );
+remove_test_admin( $admin );
 
-remove_test_admin();
+
+# Now try again with no relevant privs and make sure we're shut out
+my $poll_admin = create_test_admin( 'form_poll_admin', 'Poll Admin' );
+$t = login_test_admin( $poll_admin->username, $poll_admin->username )
+    or die 'Failed to log in as Poll Admin';
+$t->get_ok(
+    '/admin/form',
+    'Attempt to access form handler admin area as a Poll Admin'
+);
+$t->title_unlike(
+	qr/Form Handlers/,
+	'Failed to reach form handler admin area without any appropriate roles enabled'
+);
+remove_test_admin( $poll_admin );
 
 done_testing();

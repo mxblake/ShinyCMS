@@ -37,7 +37,7 @@ sub base : Chained( '/base' ) : PathPart( 'admin/polls' ) : CaptureArgs( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Check to see if user is allowed to administrate polls
-	return 0 unless $self->user_exists_and_can($c, {
+	return 0 unless $self->user_exists_and_can( $c, {
 		action   => 'administrate polls',
 		role     => 'Poll Admin',
 		redirect => '/polls'
@@ -56,7 +56,7 @@ Display list of news items
 
 sub index : Chained( 'base' ) : PathPart( '' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-	
+
 	$c->go( 'list_polls' );
 }
 
@@ -129,7 +129,7 @@ sub save_poll : Chained( 'base' ) : PathPart( 'save' ) : Args( 0 ) {
 			id => $c->request->param( 'poll_id' ),
 		});
 
-		if ( $c->request->param('delete') and $c->request->param('delete') eq 'Delete' ) {
+		if ( defined $c->request->param( 'delete' ) ) {
 			$poll->poll_anon_votes->delete;
 			$poll->poll_user_votes->delete;
 			$poll->poll_answers->delete;
