@@ -58,65 +58,65 @@ Process a form submission.
 sub process : Chained( 'base' ) : PathPart( '' ) : Args( 1 ) {
 	my ( $self, $c, $url_name ) = @_;
 
+	# If we don't have a referer, build a fallback redirect URL
+	my $goto = $c->request->referer ? $c->request->referer : $c->uri_for( '/' );
+
 	# Get the form
-	my $form = $c->model( 'DB::CmsForm' )->find({
+	my $forms = $c->model( 'DB::CmsForm' )->search({
 		url_name => $url_name,
 	});
-	$c->stash->{ form } = $form;
+	unless ( $forms->count > 0 ) {
+		$c->flash->{ error_msg } = "Could not find form handler for $url_name";
+		$c->response->redirect( $goto );
+		$c->detach;
+	}
+	my $form = $c->stash->{ form } = $forms->first;
 
 	# Check for reCaptcha
 	if ( $form->has_captcha ) {
 		my $result;
 		if ( $c->request->param( 'g-recaptcha-response' ) ) {
-			$result = $self->_recaptcha_result( $c );
+			$result = $self->recaptcha_result( $c );
+			unless ( $result->{ is_valid } ) {
+				$c->flash->{ error_msg } =
+					'You did not pass the recaptcha test - please try again.';
+			}
 		}
 		else {
 			$c->flash->{ error_msg } = 'You must fill in the reCaptcha.';
-			$c->response->redirect( $c->request->referer );
-			return;
-		}
-		unless ( $result->{ is_valid } ) {
-			$c->flash->{ error_msg } =
-				'You did not pass the recaptcha test - please try again.';
-				$c->response->redirect( $c->request->referer );
-			return;
 		}
 	}
 
 	# Dispatch to the appropriate form-handling method
-	if ( $form->action eq 'Email' ) {
-		if ( $form->template ) {
-			$c->forward( 'send_email_with_template' );
+	unless ( $c->flash->{ error_msg } ) {
+		if ( $form->action eq 'Email' ) {
+			if ( $form->template ) {
+				$c->forward( 'send_email_with_template' );
+			}
+			else {
+				$c->forward( 'send_email_without_template' );
+			}
 		}
-		else {
-			$c->forward( 'send_email_without_template' );
-		}
-	}
-	else {
-		warn "We don't have any other types of form-handling yet!";
 	}
 
 	# Redirect user to an appropriate page
 	if ( $c->flash->{ error_msg } ) {
-		# Validation failed - repopulate and reload form
+		# Validation failed - repopulate form params and attempt to go back there
 		my $params = $c->request->params;
 		foreach my $param ( keys %$params ) {
 			$c->flash->{ $param } = $params->{ $param };
 		}
-		$c->response->redirect( $c->request->referer );
+		$c->response->redirect( $goto );
 	}
 	elsif ( $form->redirect ) {
-		# Redirect to specified destination page, if one is set
-		$c->response->redirect( $form->redirect );
-	}
-	elsif ( $c->request->referer ) {
-		# Otherwise, bounce to referring page
-		$c->response->redirect( $c->request->referer );
+		# Redirect to specified destination, if the form handler has one set
+		$c->response->redirect( $c->uri_for( $form->redirect ) );
 	}
 	else {
-		# User's browser is hiding referring page info - bounce them to /
-		$c->response->redirect( '/' );
+		# Redirect to refering page, or to site homepage
+		$c->response->redirect( $goto );
 	}
+	$c->detach;
 }
 
 

@@ -15,20 +15,15 @@
 use strict;
 use warnings;
 
-# Local modules
-use FindBin qw( $Bin );
-use lib "$Bin/../../../lib";
-use ShinyCMS;
-use ShinyCMS::Schema;
-
 # CPAN modules
 use DateTime::Duration;
 
+# Load local helper lib and get connected schema object
+use FindBin qw( $Bin );
+use lib "$Bin/../../lib";
+require 'helpers.pl';  ## no critic
 
-# Get a database connection
-my $schema = ShinyCMS::Schema->connect(
-	ShinyCMS->config->{ 'Model::DB' }->{ connect_info }
-);
+my $schema = get_schema();
 
 
 # Create a user, make them a blog author
@@ -1266,6 +1261,7 @@ my $body13 = <<EOT;
 <p>	A guard passed me my backpack. The woman extended her hand to me. I
 	just looked at it. She put it down and gave me a wry smile. Then she
 	mimed zipping up her lips and pointed to me, and opened the door.
+</p>
 </p>
 <p>	It was daylight outside, gray and drizzling. I was looking down an alley
 	toward cars and trucks and bikes zipping down the road. I stood

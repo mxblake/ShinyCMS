@@ -15,24 +15,17 @@
 use strict;
 use warnings;
 
-# Local modules
+# Load local helper lib and get connected schema object
 use FindBin qw( $Bin );
-use lib "$Bin/../../../lib";
-use ShinyCMS;
-use ShinyCMS::Schema;
+use lib "$Bin/../../lib";
+require 'helpers.pl';  ## no critic
 
-
-# Get a database connection
-my $schema = ShinyCMS::Schema->connect(
-	ShinyCMS->config->{ 'Model::DB' }->{ connect_info }
-);
-
+my $schema = get_schema();
 
 # Fetch the default admin user
 my $user = $schema->resultset( 'User' )->find({
 	username => 'admin',
 });
-
 
 # Create a mailing list
 my $list = $schema->resultset( 'MailingList' )->find_or_create({
@@ -71,6 +64,7 @@ $list->subscriptions->find_or_create({
 # Create another mailing list
 my $testlist = $schema->resultset( 'MailingList' )->find_or_create({
 	name => 'Testing',
+	user_can_sub => 1
 });
 # Create some more mail recipients
 my $testrecipient = $schema->resultset( 'MailRecipient' )->find_or_create({
@@ -206,4 +200,3 @@ $autoresponder_email->autoresponder_email_elements->find_or_create({
 </p>
 EOT
 });
-

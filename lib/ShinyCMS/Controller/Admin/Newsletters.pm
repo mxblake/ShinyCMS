@@ -135,7 +135,7 @@ Process a newsletter addition.
 
 =cut
 
-sub add_newsletter_do : Chained( 'base' ) : PathPart( 'add-newsletter-do' ) : Args( 0 ) {
+sub add_newsletter_do : Chained( 'base' ) : PathPart( 'add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Extract page details from form
@@ -227,7 +227,7 @@ Process a newsletter update.
 
 =cut
 
-sub edit_newsletter_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub edit_newsletter_do : Chained( 'base' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Fetch the newsletter
@@ -244,8 +244,8 @@ sub edit_newsletter_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 		$c->flash->{ status_msg } = 'Newsletter deleted';
 
 		# Bounce to the default page
-		$c->response->redirect( $c->uri_for( 'list' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
+		$c->detach;
 	}
 
 	# Extract newsletter details from form
@@ -410,8 +410,8 @@ sub test : Chained( 'base' ) : PathPart( 'test' ) : Args( 1 ) {
 	# Make sure the status progression is sane
 	unless ( $c->stash->{ newsletter }->status eq 'Not sent' ) {
 		$c->flash->{ status_msg } = 'Newsletter already sent.';
-		$c->response->redirect( $c->uri_for( 'list' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
+		$c->detach;
 	}
 
 	# Set delivery status to 'Test'
@@ -445,8 +445,8 @@ sub queue : Chained( 'base' ) : PathPart( 'queue' ) : Args( 1 ) {
 	# Make sure the status progression is sane
 	unless ( $c->stash->{ newsletter }->status eq 'Not sent' ) {
 		$c->flash->{ status_msg } = 'Newsletter already sent.';
-		$c->response->redirect( $c->uri_for( 'list' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
+		$c->detach;
 	}
 
 	# Set delivery status to 'Queued' and time sent to 'now'
@@ -459,7 +459,7 @@ sub queue : Chained( 'base' ) : PathPart( 'queue' ) : Args( 1 ) {
 	$c->flash->{ status_msg } = 'Newsletter queued for sending';
 
 	# Bounce back to the list
-	$c->response->redirect( $c->uri_for( 'list' ) );
+	$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
 }
 
 
@@ -480,8 +480,8 @@ sub unqueue : Chained( 'base' ) : PathPart( 'unqueue' ) : Args( 1 ) {
 	# Make sure the status progression is sane
 	unless ( $c->stash->{ newsletter }->status eq 'Queued' ) {
 		$c->flash->{ status_msg } = 'Newsletter not in queue.';
-		$c->response->redirect( $c->uri_for( 'list' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
+		$c->detach;
 	}
 
 	# Set delivery status to 'Not sent'
@@ -494,7 +494,7 @@ sub unqueue : Chained( 'base' ) : PathPart( 'unqueue' ) : Args( 1 ) {
 	$c->flash->{ status_msg } = 'Newsletter removed from delivery queue';
 
 	# Bounce back to the list
-	$c->response->redirect( $c->uri_for( 'list' ) );
+	$c->response->redirect( $c->uri_for( '/admin/newsletters' ) );
 }
 
 
@@ -627,7 +627,7 @@ Process adding an autoresponder
 
 =cut
 
-sub add_autoresponder_do : Chained( 'base' ) : PathPart( 'autoresponder/add/do' ) : Args( 0 ) {
+sub add_autoresponder_do : Chained( 'base' ) : PathPart( 'autoresponder/add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Check we have the minimum details
@@ -639,12 +639,9 @@ sub add_autoresponder_do : Chained( 'base' ) : PathPart( 'autoresponder/add/do' 
 	}
 
 	# Sanitise the url_name
-	my $url_name = $c->request->param( 'url_name' );
-	$url_name  ||= $c->request->param( 'name'     );
-	$url_name   =~ s/\s+/-/g;
-	$url_name   =~ s/-+/-/g;
-	$url_name   =~ s/[^-\w]//g;
-	$url_name   =  lc $url_name;
+	my $url_name = $c->request->params->{ url_name };
+	$url_name  ||= $c->request->params->{ name     };
+	$url_name    = $self->make_url_slug( $url_name );
 
 	# Add the autoresponder
 	my $has_captcha = 0;
@@ -722,7 +719,7 @@ Process updating an autoresponder
 
 =cut
 
-sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'edit/do' ) : Args( 0 ) {
+sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Process deletions
@@ -739,7 +736,7 @@ sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'edit/do'
 
 		# Redirect to the list of autoresponders page
 		$c->response->redirect( $c->uri_for( 'autoresponders' ) );
-		return;
+		$c->detach;
 	}
 
 	# Check we have the minimum details
@@ -753,12 +750,9 @@ sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'edit/do'
 	}
 
 	# Sanitise the url_name
-	my $url_name = $c->request->param( 'url_name' );
-	$url_name  ||= $c->request->param( 'name'     );
-	$url_name   =~ s/\s+/-/g;
-	$url_name   =~ s/-+/-/g;
-	$url_name   =~ s/[^-\w]//g;
-	$url_name   =  lc $url_name;
+	my $url_name = $c->request->params->{ url_name };
+	$url_name  ||= $c->request->params->{ name     };
+	$url_name    = $self->make_url_slug( $url_name );
 
 	# Update the autoresponder
 	my $has_captcha = 0;
@@ -916,7 +910,7 @@ sub edit_autoresponder_email_do : Chained( 'get_autoresponder_email' ) : PathPar
 		# Redirect to the autoresponder's edit page
 		my $uri = $c->uri_for( 'autoresponder', $c->stash->{ autoresponder }->id, 'edit' );
 		$c->response->redirect( $uri );
-		return;
+		$c->detach;
 	}
 
 	# Extract email details from form
@@ -1109,7 +1103,7 @@ Process adding an paid list
 
 =cut
 
-sub add_paid_list_do : Chained( 'base' ) : PathPart( 'paid-list/add/do' ) : Args( 0 ) {
+sub add_paid_list_do : Chained( 'base' ) : PathPart( 'paid-list/add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Check we have the minimum details
@@ -1121,12 +1115,9 @@ sub add_paid_list_do : Chained( 'base' ) : PathPart( 'paid-list/add/do' ) : Args
 	}
 
 	# Sanitise the url_name
-	my $url_name = $c->request->param( 'url_name' );
-	$url_name  ||= $c->request->param( 'name'     );
-	$url_name   =~ s/\s+/-/g;
-	$url_name   =~ s/-+/-/g;
-	$url_name   =~ s/[^-\w]//g;
-	$url_name   =  lc $url_name;
+	my $url_name = $c->request->params->{ url_name };
+	$url_name  ||= $c->request->params->{ name     };
+	$url_name    = $self->make_url_slug( $url_name );
 
 	# Add the paid list
 	my $has_captcha = 0;
@@ -1136,7 +1127,6 @@ sub add_paid_list_do : Chained( 'base' ) : PathPart( 'paid-list/add/do' ) : Args
 		url_name     => $url_name,
 		description  => $c->request->param( 'description'  ),
 		mailing_list => $c->request->param( 'mailing_list' ) || undef,
-		has_captcha  => $has_captcha || 0,
 	});
 
 	# Redirect to edit page
@@ -1204,7 +1194,7 @@ Process updating a paid list
 
 =cut
 
-sub edit_paid_list_do : Chained( 'get_paid_list' ) : PathPart( 'edit/do' ) : Args( 0 ) {
+sub edit_paid_list_do : Chained( 'get_paid_list' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Process deletions
@@ -1220,8 +1210,8 @@ sub edit_paid_list_do : Chained( 'get_paid_list' ) : PathPart( 'edit/do' ) : Arg
 		$c->flash->{ status_msg } = 'Paid list deleted';
 
 		# Redirect to the list of paid lists
-		$c->response->redirect( $c->uri_for( 'paid-lists' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters/paid-lists' ) );
+		$c->detach;
 	}
 
 	# Check we have the minimum details
@@ -1235,12 +1225,9 @@ sub edit_paid_list_do : Chained( 'get_paid_list' ) : PathPart( 'edit/do' ) : Arg
 	}
 
 	# Sanitise the url_name
-	my $url_name = $c->request->param( 'url_name' );
-	$url_name  ||= $c->request->param( 'name'     );
-	$url_name   =~ s/\s+/-/g;
-	$url_name   =~ s/-+/-/g;
-	$url_name   =~ s/[^-\w]//g;
-	$url_name   =  lc $url_name;
+	my $url_name = $c->request->params->{ url_name };
+	$url_name  ||= $c->request->params->{ name     };
+	$url_name    = $self->make_url_slug( $url_name );
 
 	# Update the paid list
 	my $has_captcha = 0;
@@ -1250,7 +1237,6 @@ sub edit_paid_list_do : Chained( 'get_paid_list' ) : PathPart( 'edit/do' ) : Arg
 		url_name     => $url_name,
 		description  => $c->request->param( 'description'  ),
 		mailing_list => $c->request->param( 'mailing_list' ) || undef,
-		has_captcha  => $has_captcha || 0,
 	});
 
 	# Redirect to edit page
@@ -1398,7 +1384,7 @@ sub edit_paid_list_email_do : Chained( 'get_paid_list_email' ) : PathPart( 'edit
 		# Redirect to the paid list's edit page
 		my $uri = $c->uri_for( 'paid-list', $c->stash->{ paid_list }->id, 'edit' );
 		$c->response->redirect( $uri );
-		return;
+		$c->detach;
 	}
 
 	# Extract email details from form
@@ -1611,7 +1597,7 @@ Process a mailing list update or addition.
 
 =cut
 
-sub edit_list_do : Chained( 'base' ) : PathPart( 'edit-list-do' ) : Args( 0 ) {
+sub edit_list_do : Chained( 'base' ) : PathPart( 'list/save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	my $list_id = $c->request->param( 'list_id' );
@@ -1630,7 +1616,7 @@ sub edit_list_do : Chained( 'base' ) : PathPart( 'edit-list-do' ) : Args( 0 ) {
 		}) if $newsletters;
 
 		# Find anyone marked as a recipient for this list and disconnect them
-		my $recipients = $c->model('DB::ListRecipient')->search({
+		my $recipients = $c->model('DB::Subscription')->search({
 			list => $list_id,
 		});
 		$recipients->delete;
@@ -1641,12 +1627,12 @@ sub edit_list_do : Chained( 'base' ) : PathPart( 'edit-list-do' ) : Args( 0 ) {
 		$c->flash->{ status_msg } = 'List deleted';
 
 		# Bounce to the default page
-		$c->response->redirect( $c->uri_for( 'list-lists' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters/lists' ) );
+		$c->detach;
 	}
 
-	my $sub   = 0; $sub   = 1 if $c->request->param( 'user_can_sub'   ) eq 'on';
-	my $unsub = 0; $unsub = 1 if $c->request->param( 'user_can_unsub' ) eq 'on';
+	my $sub   = defined $c->request->param( 'user_can_sub'   ) ? 1 : 0;
+	my $unsub = defined $c->request->param( 'user_can_unsub' ) ? 1 : 0;
 	if ( $c->request->param( 'list_id' ) ) {
 		# Update existing list
 		$c->stash->{ mailing_list }->update({
@@ -1771,6 +1757,13 @@ List all the newsletter templates.
 sub list_templates : Chained( 'base' ) : PathPart( 'templates' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
+
 	my @templates = $c->model( 'DB::NewsletterTemplate' )->all;
 	$c->stash->{ newsletter_templates } = \@templates;
 }
@@ -1785,7 +1778,15 @@ Stash details relating to a CMS template.
 sub get_template : Chained( 'base' ) : PathPart( 'template' ) : CaptureArgs( 1 ) {
 	my ( $self, $c, $template_id ) = @_;
 
-	$c->stash->{ newsletter_template } = $c->model( 'DB::NewsletterTemplate' )->find( { id => $template_id } );
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
+
+	$c->stash->{ newsletter_template } = 
+		$c->model( 'DB::NewsletterTemplate' )->find( { id => $template_id } );
 
 	unless ( $c->stash->{ newsletter_template } ) {
 		$c->flash->{ error_msg } =
@@ -1816,8 +1817,7 @@ sub get_template_filenames {
 		or die "Failed to open template directory $template_dir: $!";
 	my @templates;
 	foreach my $filename ( readdir( $template_dh ) ) {
-		next if $filename =~ m/^\./; # skip hidden files
-		next if $filename =~ m/~$/;  # skip backup files
+		next unless $filename =~ m{[-\w]+\.tt$}; # only display .tt files
 		push @templates, $filename;
 	}
 	@templates = sort @templates;
@@ -1835,6 +1835,13 @@ Add a new newsletter template.
 sub add_template : Chained( 'base' ) : PathPart( 'template/add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
+
 	$c->stash->{ template_filenames } = get_template_filenames( $c );
 
 	$c->stash->{ types  } = get_element_types();
@@ -1849,8 +1856,15 @@ Process a template addition.
 
 =cut
 
-sub add_template_do : Chained( 'base' ) : PathPart( 'add-template-do' ) : Args( 0 ) {
+sub add_template_do : Chained( 'base' ) : PathPart( 'template/add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
+
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
 
 	# Create template
 	my $template = $c->model( 'DB::NewsletterTemplate' )->create({
@@ -1861,8 +1875,9 @@ sub add_template_do : Chained( 'base' ) : PathPart( 'add-template-do' ) : Args( 
 	# Shove a confirmation message into the flash
 	$c->flash->{ status_msg } = 'Template details saved';
 
-	# Bounce back to the template list
-	$c->response->redirect( $c->uri_for( 'list-templates' ) );
+	# Bounce back to the template's edit page
+	my $url = $c->uri_for( '/admin/newsletters/template', $template->id, 'edit' );
+	$c->response->redirect( $url );
 }
 
 
@@ -1874,6 +1889,13 @@ Edit a CMS template.
 
 sub edit_template : Chained( 'get_template' ) : PathPart( 'edit' ) : Args( 0 ) {
 	my ( $self, $c, $template_id ) = @_;
+
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
 
 	$c->stash->{ types  } = get_element_types();
 
@@ -1887,8 +1909,15 @@ Process a template edit.
 
 =cut
 
-sub edit_template_do : Chained( 'base' ) : PathPart( 'edit-template-do' ) : Args( 0 ) {
+sub edit_template_do : Chained( 'base' ) : PathPart( 'template/save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
+
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
 
 	my $template_id = $c->request->param( 'template_id' );
 	$c->stash->{ newsletter_template } = $c->model( 'DB::NewsletterTemplate' )->find({
@@ -1904,8 +1933,8 @@ sub edit_template_do : Chained( 'base' ) : PathPart( 'edit-template-do' ) : Args
 		$c->flash->{ status_msg } = 'Template deleted';
 
 		# Bounce to the 'view all templates' page
-		$c->response->redirect( $c->uri_for( 'list-templates' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/newsletters/templates' ) );
+		$c->detach;
 	}
 
 	# Update template
@@ -1917,8 +1946,9 @@ sub edit_template_do : Chained( 'base' ) : PathPart( 'edit-template-do' ) : Args
 	# Shove a confirmation message into the flash
 	$c->flash->{ status_msg } = 'Template details updated';
 
-	# Bounce back to the list of templates
-	$c->response->redirect( $c->uri_for( 'list-templates' ) );
+	# Bounce back to the template's edit page
+	my $url = $c->uri_for( '/admin/newsletters/template', $c->stash->{ newsletter_template }->id, 'edit' );
+	$c->response->redirect( $url );
 }
 
 
@@ -1930,6 +1960,13 @@ Add an element to a template.
 
 sub add_template_element_do : Chained( 'get_template' ) : PathPart( 'add-template-element-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
+
+	# Check to make sure user has the right permissions
+	return 0 unless $self->user_exists_and_can( $c, {
+		action   => 'add/edit/delete newsletter templates',
+		role     => 'Newsletter Template Admin',
+		redirect => '/admin/newsletters'
+	});
 
 	# Extract element from form
 	my $element = $c->request->param( 'new_element' );

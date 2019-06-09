@@ -15,17 +15,12 @@
 use strict;
 use warnings;
 
-# Local modules
+# Load local helper lib and get connected schema object
 use FindBin qw( $Bin );
-use lib "$Bin/../../../lib";
-use ShinyCMS;
-use ShinyCMS::Schema;
+use lib "$Bin/../../lib";
+require 'helpers.pl';  ## no critic
 
-
-# Get a database connection
-my $schema = ShinyCMS::Schema->connect(
-	ShinyCMS->config->{ 'Model::DB' }->{ connect_info }
-);
+my $schema = get_schema();
 
 
 # Create some templates
@@ -838,13 +833,19 @@ my $cms_page4 = $cms_template3->cms_pages->find_or_create({
 });
 
 
-# Create the contact form handler
+# Create some form handlers
 my $cms_form1 = $schema->resultset( 'CmsForm' )->find_or_create({
 	name        => 'Contact Form',
 	url_name    => 'contact',
-	redirect    => '/',
 	action      => 'Email',
 	has_captcha => 1,
+});
+my $cms_form2 = $schema->resultset( 'CmsForm' )->find_or_create({
+	name        => 'Contact Form (sends HTML email)',
+	url_name    => 'contact-html',
+	action      => 'Email',
+	template    => 'contact.tt',
+	redirect    => '/pages/more/features',
 });
 
 
@@ -855,4 +856,3 @@ $cms_section1->update({
 $cms_section2->update({
 	default_page => $cms_page2->id,
 });
-
