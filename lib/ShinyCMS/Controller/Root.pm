@@ -235,7 +235,7 @@ Get a list of filenames from a specified folder in the uploads area.
 sub get_filenames {
 	my ( $self, $c, $folder ) = @_;
 
-	$folder ||= 'images';
+	$folder = $folder ? $folder : 'images';
 
 	my $image_dir = $c->path_to( 'root', 'static', $c->config->{ upload_dir }, $folder );
 	opendir( my $image_dh, $image_dir )
@@ -259,7 +259,7 @@ sub get_filenames {
 
 =cut
 
-sub default {
+sub default : Path {
 	my ( $self, $c ) = @_;
 
 	$c->stash->{ template } = '404.tt';

@@ -18,6 +18,7 @@ use Test::More;
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
+
 # First, create and log in as a newsletter template admin
 my $template_admin = create_test_admin(
 	'test_admin_newsletters_template_admin',
@@ -26,25 +27,20 @@ my $template_admin = create_test_admin(
 );
 my $t_ta = login_test_admin( $template_admin->username, $template_admin->username )
 	or die 'Failed to log in as Newsletter Template Admin';
-
+# Check login was successful
 my $c = $t_ta->ctx;
 ok(
 	$c->user->has_role( 'Newsletter Template Admin' ),
 	'Logged in as Newsletter Template Admin'
 );
-
 # Check we get sent to correct admin area by default
-$t_ta->get_ok(
-	'/admin',
-	'Fetch admin area'
-);
 $t_ta->title_is(
 	'List Newsletters - ShinyCMS',
 	'Redirected to admin area for newsletters'
 );
 
 
-# Add newsletter template
+# Add a newsletter template
 $t_ta->follow_link_ok(
 	{ text => 'Add template' },
 	'Follow link to add a new newsletter'
@@ -64,7 +60,7 @@ $t_ta->title_is(
 	'Edit Template - ShinyCMS',
 	'Redirected to edit page for newly created template'
 );
-my @template_inputs1 = $t_ta->grep_inputs({ name => qr/name$/ });
+my @template_inputs1 = $t_ta->grep_inputs({ name => qr{^name$} });
 ok(
 	$template_inputs1[0]->value eq 'This is a test template',
 	'Verified that template was created'
@@ -78,12 +74,12 @@ $t_ta->submit_form_ok({
 	}},
 	'Submitted form to update template name'
 );
-my @template_inputs2 = $t_ta->grep_inputs({ name => qr/name$/ });
+my @template_inputs2 = $t_ta->grep_inputs({ name => qr{^name$} });
 ok(
 	$template_inputs2[0]->value eq 'Template updated by test suite',
 	'Verified that template was updated'
 );
-my @template_inputs3 = $t_ta->grep_inputs({ name => qr/^template_id$/ });
+my @template_inputs3 = $t_ta->grep_inputs({ name => qr{^template_id$} });
 my $template_id = $template_inputs3[0]->value;
 
 # Add an element to the template
@@ -100,6 +96,7 @@ $t_ta->text_contains(
 	'Verified that new element was added'
 );
 
+
 # Now, log in as standard newsletter admin
 my $admin = create_test_admin(
 	'test_admin_newsletters',
@@ -111,6 +108,11 @@ $c = $t->ctx;
 ok(
 	$c->user->has_role( 'Newsletter Admin' ),
 	'Logged in as Newsletter Admin'
+);
+# Check we get sent to correct admin area by default
+$t->title_is(
+	'List Newsletters - ShinyCMS',
+	'Redirected to admin area for newsletters'
 );
 
 
@@ -134,7 +136,7 @@ $t->title_is(
 	'Edit Mailing List - ShinyCMS',
 	'Redirected to edit page for newly created list'
 );
-my @list_inputs1 = $t->grep_inputs({ name => qr/name$/ });
+my @list_inputs1 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$list_inputs1[0]->value eq 'This is a test list',
 	'Verified that list was created'
@@ -148,12 +150,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update list name'
 );
-my @list_inputs2 = $t->grep_inputs({ name => qr/name$/ });
+my @list_inputs2 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$list_inputs2[0]->value eq 'List updated by test suite',
 	'Verified that list was updated'
 );
-my @list_inputs3 = $t->grep_inputs({ name => qr/^list_id$/ });
+my @list_inputs3 = $t->grep_inputs({ name => qr{^list_id$} });
 my $list_id = $list_inputs3[0]->value;
 
 
@@ -177,7 +179,7 @@ $t->title_is(
 	'Edit Newsletter - ShinyCMS',
 	'Redirected to edit page for newly created newsletter'
 );
-my @inputs1 = $t->grep_inputs({ name => qr/url_title$/ });
+my @inputs1 = $t->grep_inputs({ name => qr{^url_title$} });
 ok(
 	$inputs1[0]->value eq 'this-is-some-test-news',
 	'Verified that newsletter was created'
@@ -201,12 +203,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update newsletter date, time, and hidden status'
 );
-my @inputs2 = $t->grep_inputs({ name => qr/url_title$/ });
+my @inputs2 = $t->grep_inputs({ name => qr{url_title$} });
 ok(
 	$inputs2[0]->value eq 'newsletter-updated-by-test-suite',
 	'Verified that newsletter was updated'
 );
-my @inputs3 = $t->grep_inputs({ name => qr/^newsletter_id$/ });
+my @inputs3 = $t->grep_inputs({ name => qr{^newsletter_id$} });
 my $newsletter_id = $inputs3[0]->value;
 
 
@@ -230,7 +232,7 @@ $t->title_is(
 	'Edit Paid List - ShinyCMS',
 	'Redirected to edit page for newly created list'
 );
-my @paid_inputs1 = $t->grep_inputs({ name => qr/name$/ });
+my @paid_inputs1 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$paid_inputs1[0]->value eq 'This is a test list',
 	'Verified that list was created'
@@ -244,12 +246,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update list name'
 );
-my @paid_inputs2 = $t->grep_inputs({ name => qr/name$/ });
+my @paid_inputs2 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$paid_inputs2[0]->value eq 'List updated by test suite',
 	'Verified that list was updated'
 );
-my @paid_inputs3 = $t->grep_inputs({ name => qr/^paid_list_id$/ });
+my @paid_inputs3 = $t->grep_inputs({ name => qr{^paid_list_id$} });
 my $paid_list_id = $paid_inputs3[0]->value;
 
 
@@ -273,13 +275,13 @@ $t->title_is(
 	'Edit Autoresponder - ShinyCMS',
 	'Redirected to edit page for newly created autoresponder'
 );
-my @autoresponder_inputs1 = $t->grep_inputs({ name => qr/name$/ });
+my @autoresponder_inputs1 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$autoresponder_inputs1[0]->value eq 'This is a test autoresponder',
 	'Verified that autoresponder was created'
 );
 
-# Update the paid list
+# Update the autoresponder
 $t->submit_form_ok({
 	form_id => 'edit_autoresponder',
 	fields => {
@@ -287,12 +289,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update autoresponder name'
 );
-my @autoresponder_inputs2 = $t->grep_inputs({ name => qr/name$/ });
+my @autoresponder_inputs2 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$autoresponder_inputs2[0]->value eq 'Autoresponder updated by test suite',
 	'Verified that autoresponder was updated'
 );
-my @autoresponder_inputs3 = $t->grep_inputs({ name => qr/^autoresponder_id$/ });
+my @autoresponder_inputs3 = $t->grep_inputs({ name => qr{^autoresponder_id$} });
 my $autoresponder_id = $autoresponder_inputs3[0]->value;
 
 
@@ -324,7 +326,6 @@ $t->post_ok(
 	},
 	'Submitted request to delete mailing list'
 );
-# Check deleted item is no longer on list page
 $t->title_is(
 	'Mailing Lists - ShinyCMS',
 	'Reached list of mailing lists'
@@ -343,7 +344,6 @@ $t->post_ok(
 	},
 	'Submitted request to delete mailing list'
 );
-# Check deleted item is no longer on list page
 $t->title_is(
 	'Paid Lists - ShinyCMS',
 	'Reached list of paid lists'
@@ -362,7 +362,6 @@ $t->post_ok(
 	},
 	'Submitted request to delete autoresponder'
 );
-# Check deleted item is no longer on list page
 $t->title_is(
 	'Autoresponders - ShinyCMS',
 	'Reached list of autoresponders'
@@ -373,6 +372,11 @@ $t->content_lacks(
 );
 
 # Delete template
+$c = $t_ta->ctx;
+ok(
+	$c->user->has_role( 'Newsletter Template Admin' ),
+	'Logged back in as Newsletter Template Admin'
+);
 $t_ta->post_ok(
 	'/admin/newsletters/template/save',
 	{
@@ -381,7 +385,6 @@ $t_ta->post_ok(
 	},
 	'Submitted request to delete newsletter template'
 );
-# Check deleted item is no longer on list page
 $t_ta->title_is(
 	'Newsletter Templates - ShinyCMS',
 	'Reached list of templates'
@@ -390,6 +393,7 @@ $t_ta->content_lacks(
 	'Template updated by test suite',
 	'Verified that template was deleted'
 );
+
 
 # Log out, then try to access admin area for newsletters again
 $t->follow_link_ok(
@@ -405,8 +409,28 @@ $t->title_is(
 	'Redirected to admin login page instead'
 );
 
-# Tidy up
+# Log in as the wrong sort of admin, and make sure we're still blocked
+my $poll_admin = create_test_admin( 'test_admin_newsletters_poll_admin', 'Poll Admin' );
+$t = login_test_admin( $poll_admin->username, $poll_admin->username )
+	or die 'Failed to log in as Poll Admin';
+$c = $t->ctx;
+ok(
+	$c->user->has_role( 'Poll Admin' ),
+	'Logged in as Poll Admin'
+);
+$t->get_ok(
+	'/admin/newsletters',
+	'Try to access admin area for newsletters'
+);
+$t->title_unlike(
+	qr{^.*Shop.* - ShinyCMS$},
+	'Poll Admin cannot access admin area for newsletters'
+);
+
+
+# Tidy up user accounts
 remove_test_admin( $template_admin );
-remove_test_admin( $admin );
+remove_test_admin( $admin          );
+remove_test_admin( $poll_admin     );
 
 done_testing();

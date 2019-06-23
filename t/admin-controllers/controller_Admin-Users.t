@@ -19,9 +19,13 @@ use Test::WWW::Mechanize::Catalyst::WithContext;
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
+
 my $admin = create_test_admin( 'test_admin_users', 'User Admin' );
 
+my $schema = get_schema();
+
 my $t = Test::WWW::Mechanize::Catalyst::WithContext->new( catalyst_app => 'ShinyCMS' );
+
 
 # Try to fetch the admin area, expecting to fail and be aked to log in first
 $t->get_ok(
@@ -32,6 +36,7 @@ $t->title_is(
 	'Log In - ShinyCMS',
 	'Admin area requires login'
 );
+
 # Submit admin login form
 $t->submit_form_ok({
 	form_id => 'login',
@@ -45,6 +50,7 @@ $t->content_contains(
 	'Logout',
 	'Login attempt successful'
 );
+
 # Fetch the admin area again
 $t->get_ok(
 	'/admin',
@@ -72,11 +78,12 @@ $t->title_is(
 	'Edit user - ShinyCMS',
 	'Redirected to edit page for new user'
 );
-my @inputs1 = $t->grep_inputs({ name => qr/^email$/ });
+my @inputs1 = $t->grep_inputs({ name => qr{^email$} });
 ok(
 	$inputs1[0]->value eq $test_data_email,
 	'Verified that user was created'
 );
+
 # Update user details
 $t->submit_form_ok({
 	form_id => 'edit_user',
@@ -85,13 +92,14 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update user'
 );
-my @inputs2 = $t->grep_inputs({ name => qr/^admin_notes$/ });
+my @inputs2 = $t->grep_inputs({ name => qr{^admin_notes$} });
 ok(
 	$inputs2[0]->value eq 'User updated by test suite',
 	'Verified that user was updated'
 );
-my @inputs3 = $t->grep_inputs({ name => qr/^user_id$/ });
+my @inputs3 = $t->grep_inputs({ name => qr{^user_id$} });
 my $user_id = $inputs3[0]->value;
+
 # Fetch the list of users
 $t->get_ok(
 	'/admin/users',
@@ -101,6 +109,7 @@ $t->title_is(
 	'List Users - ShinyCMS',
 	'Reached user list in admin area'
 );
+
 # Search users
 $t->submit_form_ok({
 	form_id => 'search_users',
@@ -114,14 +123,16 @@ $t->text_contains(
 	'Search returned matching users'
 );
 $t->back;
+
 # Look at file access logs for a user
-# TODO: this is the only admin area test that relies on the demo data being loaded
+# TODO: this is one of the few admin area tests that relies on the demo data being loaded
+my $logs_user_id = $schema->resultset( 'FileAccess' )->first->user->id;
 $t->follow_link_ok(
-	{ url_regex => qr{/admin/users/user/2/file-access-logs$} },
-	'Go back to user list, click link to view file access logs for user #2'
+	{ url_regex => qr{/admin/users/user/$logs_user_id/file-access-logs$} },
+	"Go back to user list, click link to view file access logs for user $user_id"
 );
 $t->title_like(
-	qr/Access logs for: [-\w]+ - ShinyCMS/,
+	qr{^Access logs for: [-\w]+ - ShinyCMS$},
 	'Reached file access logs'
 );
 
@@ -150,9 +161,9 @@ $t->content_lacks(
 	$test_data_email,
 	'Verified that user was deleted'
 );
-remove_test_admin( $admin );
 
-# Now try again with no relevant privs and make sure we're shut out
+
+# Log in as the wrong sort of admin, and make sure we're blocked
 my $poll_admin = create_test_admin( 'test_admin_users_poll_admin', 'Poll Admin' );
 $t = login_test_admin( $poll_admin->username, $poll_admin->username )
 	or die 'Failed to log in as Poll Admin';
@@ -161,9 +172,13 @@ $t->get_ok(
 	'Attempt to fetch user admin area as Poll Admin'
 );
 $t->title_unlike(
-	qr/List Users/,
+	qr{^.*User.* - ShinyCMS$},
 	'Failed to reach user admin area without any appropriate roles enabled'
 );
+
+
+# Tidy up user accounts
 remove_test_admin( $poll_admin );
+remove_test_admin( $admin      );
 
 done_testing();

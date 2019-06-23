@@ -1,7 +1,7 @@
 package ShinyCMS::Controller::Admin::News;
 
 use Moose;
-use MooseX::Types::Moose qw/ Str /;
+use MooseX::Types::Moose qw/ Str Int /;
 use namespace::autoclean;
 
 BEGIN { extends 'ShinyCMS::Controller'; }
@@ -28,6 +28,12 @@ has hide_new_items => (
 	isa     => Str,
 	is      => 'ro',
 	default => 'No',
+);
+
+has page_size => (
+	isa     => Int,
+	is      => 'ro',
+	default => 20,
 );
 
 
@@ -73,15 +79,19 @@ List news items.
 
 =cut
 
-sub list_items : Chained( 'base' ) : PathPart( 'list' ) : OptionalArgs( 2 ) {
+sub list_items : Chained( 'base' ) : PathPart( 'list' ) : Args( 0 ) {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= 20;
-
-	my $posts = $self->get_posts( $c, $page, $count );
-
-	$c->stash->{ news_items } = $posts;
+	$c->stash->{ news_items } = $c->model( 'DB::NewsItem' )->search(
+		{},
+		{
+			order_by => { -desc => 'posted' },
+			page     => $c->request->param( 'page'  ) ?
+						$c->request->param( 'page'  ) : 1,
+			rows     => $c->request->param( 'count' ) ?
+						$c->request->param( 'count' ) : $self->page_size,
+		}
+	);
 }
 
 
@@ -104,12 +114,10 @@ sub add_do : Chained( 'base' ) : PathPart( 'add-do' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Tidy up the URL title
-	my $url_title = $c->request->param( 'url_title' );
-	$url_title  ||= $c->request->param( 'title'     );
-	$url_title   =~ s/\s+/-/g;
-	$url_title   =~ s/-+/-/g;
-	$url_title   =~ s/[^-\w]//g;
-	$url_title   =  lc $url_title;
+	my $url_title = $c->request->param( 'url_title' ) ?
+	    $c->request->param( 'url_title' ) :
+	    $c->request->param( 'title'     );
+	$url_title = $self->make_url_slug( $url_title );
 
 	# TODO: catch and fix duplicate year/month/url_title combinations
 
@@ -165,12 +173,10 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 1 ) {
 	}
 
 	# Tidy up the URL title
-	my $url_title = $c->request->param( 'url_title' );
-	$url_title  ||= $c->request->param( 'title'     );
-	$url_title   =~ s/\s+/-/g;
-	$url_title   =~ s/-+/-/g;
-	$url_title   =~ s/[^-\w]//g;
-	$url_title   =  lc $url_title;
+	my $url_title = $c->request->param( 'url_title' ) ?
+	    $c->request->param( 'url_title' ) :
+	    $c->request->param( 'title'     );
+	$url_title = $self->make_url_slug( $url_title );
 
 	# TODO: catch and fix duplicate year/month/url_title combinations
 
@@ -193,33 +199,6 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 1 ) {
 
 	# Bounce back to the 'edit' page
 	$c->response->redirect( $c->uri_for( 'edit', $item_id ) );
-}
-
-
-# ========== ( utility methods ) ==========
-
-=head2 get_posts
-
-Get the specified number of recent news posts.
-
-=cut
-
-sub get_posts {
-	my ( $self, $c, $page, $count ) = @_;
-
-	$page  ||= 1;
-	$count ||= 20;
-
-	my @posts = $c->model( 'DB::NewsItem' )->search(
-		{},
-		{
-			order_by => { -desc => 'posted' },
-			page     => $page,
-			rows     => $count,
-		},
-	);
-
-	return \@posts;
 }
 
 

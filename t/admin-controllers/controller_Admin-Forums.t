@@ -18,27 +18,23 @@ use Test::More;
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
-# Log in as a Forums Admin
-my $admin = create_test_admin( 'test_admin_forums', 'Forums Admin' );
 
+# Create and log in as a Forums Admin
+my $admin = create_test_admin( 'test_admin_forums', 'Forums Admin' );
 my $t = login_test_admin( $admin->username, $admin->username )
 	or die 'Failed to log in as Forums Admin';
-
+# Check login was successful
 my $c = $t->ctx;
 ok(
 	$c->user->has_role( 'Forums Admin' ),
 	'Logged in as Forums Admin'
 );
-
-# Try to access the admin area for forums
-$t->get_ok(
-	'/admin/forums',
-	'Try to access admin area for forums'
-);
+# Check we get sent to correct admin area by default
 $t->title_is(
 	'List Forums - ShinyCMS',
 	'Reached list of all forums'
 );
+
 
 # Add a new forum section
 $t->follow_link_ok(
@@ -60,7 +56,7 @@ $t->title_is(
 	'Edit Section - ShinyCMS',
 	'Redirected to edit page for newly created section'
 );
-my @section_inputs1 = $t->grep_inputs({ name => qr/url_name$/ });
+my @section_inputs1 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$section_inputs1[0]->value eq 'test-section',
 	'Verified that new forum section was created'
@@ -75,7 +71,7 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update forum section'
 );
-my @section_inputs2 = $t->grep_inputs({ name => qr/url_name$/ });
+my @section_inputs2 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$section_inputs2[0]->value eq 'updated-test-section',
 	'Verified that forum section was updated'
@@ -117,7 +113,7 @@ $t->title_is(
 	'Edit Forum - ShinyCMS',
 	'Redirected to edit page for newly created forum'
 );
-my @forum_inputs1 = $t->grep_inputs({ name => qr/url_name$/ });
+my @forum_inputs1 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$forum_inputs1[0]->value eq 'test-forum',
 	'Verified that new forum was created'
@@ -132,7 +128,7 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update forum'
 );
-my @forum_inputs2 = $t->grep_inputs({ name => qr/url_name$/ });
+my @forum_inputs2 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$forum_inputs2[0]->value eq 'updated-test-forum',
 	'Verified that forum was updated'
@@ -211,11 +207,25 @@ $t->content_lacks(
 	'Updated Test Section',
 	'Verified that forum section was deleted'
 );
-remove_test_admin( $admin );
 
-# Try to access forum admin area without appropriate permissions
-my $poll_admin = create_test_admin( 'forum_poll_admin', 'Poll Admin' );
-$t = login_test_admin( 'forum_poll_admin', 'forum_poll_admin' )
+
+# Log out, then try to access admin area for forums again
+$t->follow_link_ok(
+	{ text => 'Logout' },
+	'Log out of forum admin account'
+);
+$t->get_ok(
+	'/admin/forums',
+	'Try to access admin area for forums after logging out'
+);
+$t->title_is(
+	'Log In - ShinyCMS',
+	'Redirected to admin login page instead'
+);
+
+# Log in as the wrong sort of admin, and make sure we're still blocked
+my $poll_admin = create_test_admin( 'test_admin_forum_poll_admin', 'Poll Admin' );
+$t = login_test_admin( $poll_admin->username, $poll_admin->username )
 	or die 'Failed to log in as Poll Admin';
 $c = $t->ctx;
 ok(
@@ -227,9 +237,13 @@ $t->get_ok(
 	'Try to access admin area for forums'
 );
 $t->title_unlike(
-	qr/Shop.* - ShinyCMS/,
+	qr{^.*Forum.* - ShinyCMS$},
 	'Poll Admin cannot access admin area for forums'
 );
+
+
+# Tidy up user accounts
 remove_test_admin( $poll_admin );
+remove_test_admin( $admin      );
 
 done_testing();

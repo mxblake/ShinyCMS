@@ -18,32 +18,28 @@ use Test::More;
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
 
-# Log in as a CMS Template Admin
+
+# Create and log in as a CMS Template Admin
 my $template_admin = create_test_admin(
 	'test_admin_pages_template_admin',
 	'CMS Page Editor',
 	'CMS Page Admin',
 	'CMS Template Admin'
 );
-
 my $t = login_test_admin( $template_admin->username, $template_admin->username )
 	or die 'Failed to log in as CMS Template Admin';
-
+# Check that the login was successful
 my $c = $t->ctx;
 ok(
 	$c->user->has_role( 'CMS Template Admin' ),
 	'Logged in as CMS Template Admin'
 );
-
-# Head to the Page Template admin area
-$t->get_ok(
-	'/admin/pages/templates',
-	'Try to fetch admin area for CMS templates'
-);
+# Check we get sent to correct admin area by default
 $t->title_is(
-	'Page Templates - ShinyCMS',
-	'Reached admin area for CMS templates'
+	'List Pages - ShinyCMS',
+	'Redirected to admin area for CMS pages'
 );
+
 
 # Add new CMS template
 $t->follow_link_ok(
@@ -66,13 +62,14 @@ $t->title_is(
 	'Edit Template - ShinyCMS',
 	'Redirected to edit page for new CMS template'
 );
-my @template_inputs1 = $t->grep_inputs({ name => qr/^name$/ });
+my @template_inputs1 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$template_inputs1[0]->value eq 'Test Template',
 	'Verified that new template was created'
 );
 $t->uri->path =~ m{/admin/pages/template/(\d+)/edit};
 my $template_id = $1;
+# Update CMS template
 $t->submit_form_ok({
 	form_id => 'edit_template',
 	fields => {
@@ -80,11 +77,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update CMS template'
 );
-my @template_inputs2 = $t->grep_inputs({ name => qr/^name$/ });
+my @template_inputs2 = $t->grep_inputs({ name => qr{^name$} });
 ok(
 	$template_inputs2[0]->value eq 'Updated Test Template',
 	'Verified that template was updated'
 );
+
 
 # Now log in as a CMS Page Admin
 my $admin = create_test_admin(
@@ -108,6 +106,7 @@ $t->title_is(
 	'Reached admin area for CMS pages'
 );
 
+
 # Add new CMS section
 $t->follow_link_ok(
 	{ text => 'Add section' },
@@ -128,11 +127,12 @@ $t->title_is(
 	'Edit Section - ShinyCMS',
 	'Redirected to edit page for new CMS section'
 );
-my @section_inputs1 = $t->grep_inputs({ name => qr/^url_name$/ });
+my @section_inputs1 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$section_inputs1[0]->value eq 'test-section',
 	'Verified that new section was created'
 );
+# Update CMS section
 $t->submit_form_ok({
 	form_id => 'edit_section',
 	fields => {
@@ -142,13 +142,14 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update CMS section'
 );
-my @section_inputs2 = $t->grep_inputs({ name => qr/^url_name$/ });
+my @section_inputs2 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$section_inputs2[0]->value eq 'updated-test-section',
 	'Verified that section was updated'
 );
 $t->uri->path =~ m{/admin/pages/section/(\d+)/edit};
 my $section_id = $1;
+
 
 # Add new CMS page
 $t->follow_link_ok(
@@ -170,13 +171,14 @@ $t->title_is(
 	'Edit Page - ShinyCMS',
 	'Redirected to edit page for new CMS page'
 );
-my @inputs1 = $t->grep_inputs({ name => qr/^url_name$/ });
+my @inputs1 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$inputs1[0]->value eq 'new-page-from-test-suite',
 	'Verified that new page was created'
 );
 $t->uri->path =~ m{/admin/pages/page/(\d+)/edit};
 my $page_id = $1;
+
 
 # Now log in as a CMS Page Editor and check we can still access the page admin area
 my $editor = create_test_admin( 'test_admin_pages_editor', 'CMS Page Editor' );
@@ -195,9 +197,10 @@ $t->title_is(
 	'List Pages - ShinyCMS',
 	'Reached admin area for CMS pages'
 );
+
 $t->get_ok(
 	'/admin/pages/add',
-	'Try to fetch admin area for CMS pages again'
+	'Try to reach area for adding a CMS page'
 );
 $t->title_is(
 	'List Pages - ShinyCMS',
@@ -219,11 +222,12 @@ $t->submit_form_ok({
 	}},
 	'Submitted form to update CMS page'
 );
-my @inputs2 = $t->grep_inputs({ name => qr/^url_name$/ });
+my @inputs2 = $t->grep_inputs({ name => qr{^url_name$} });
 ok(
 	$inputs2[0]->value eq 'updated-page-from-test-suite',
 	'Verified that CMS page was updated'
 );
+
 
 # Delete template (can't use submit_form_ok due to javascript confirmation)
 $t = login_test_admin( $template_admin->username, $template_admin->username )
@@ -274,10 +278,20 @@ $t->content_lacks(
 	'Verified that CMS section was deleted'
 );
 
-# Tidy up
-remove_test_admin( $editor         );
-remove_test_admin( $admin          );
-remove_test_admin( $template_admin );
+
+# Log out, then try to access admin area for pages again
+$t->follow_link_ok(
+	{ text => 'Logout' },
+	'Log out of CMS page admin account'
+);
+$t->get_ok(
+	'/admin/pages',
+	'Try to access admin area for CMS pages after logging out'
+);
+$t->title_is(
+	'Log In - ShinyCMS',
+	'Redirected to admin login page instead'
+);
 
 # Log in as the wrong sort of admin, and make sure we're blocked
 my $poll_admin = create_test_admin( 'test_admin_pages_poll_admin', 'Poll Admin' );
@@ -293,9 +307,15 @@ $t->get_ok(
 	'Try to fetch admin area for CMS pages'
 );
 $t->title_unlike(
-	qr/List Pages - ShinyCMS/,
+	qr{^.*Page.* - ShinyCMS$},
 	'Poll Admin cannot view admin area for CMS pages'
 );
-remove_test_admin( $poll_admin );
+
+
+# Tidy up user accounts
+remove_test_admin( $template_admin );
+remove_test_admin( $admin          );
+remove_test_admin( $editor         );
+remove_test_admin( $poll_admin     );
 
 done_testing();

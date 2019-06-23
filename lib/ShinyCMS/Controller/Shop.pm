@@ -18,7 +18,7 @@ Controller for ShinyCMS shop.
 =cut
 
 
-has items_per_page => (
+has page_size => (
 	isa     => Int,
 	is      => 'ro',
 	default => 10,
@@ -56,6 +56,10 @@ sub base : Chained( '/base' ) : PathPart( 'shop' ) : CaptureArgs( 0 ) {
 
 	# Stash the controller name
 	$c->stash->{ controller } = 'Shop';
+
+	# Stash shopping basket, if any
+	my $basket = ShinyCMS::Controller::Shop::Basket->get_basket( $c );
+	$c->stash( basket => $basket );
 }
 
 
@@ -116,7 +120,7 @@ sub get_category : Chained( 'base' ) : PathPart( 'category' ) : CaptureArgs( 1 )
 	})->single;
 
 	unless ( $c->stash->{ category } ) {
-		$c->flash->{ error_msg } =
+		$c->stash->{ error_msg } =
 			'Category not found - please choose from the options below';
 		$c->go( 'view_categories' );
 	}
@@ -129,11 +133,11 @@ View all items in the specified category.
 
 =cut
 
-sub view_category : Chained( 'get_category' ) : PathPart( '' ) : OptionalArgs( 2 ) {
+sub view_category : Chained( 'get_category' ) : PathPart( '' ) : Args {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= $self->items_per_page;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $self->get_category_items( $c, $c->stash->{ category }->id, $page, $count );
 	$c->stash->{ shop_items } = $items;
@@ -146,11 +150,11 @@ View recently-added items.
 
 =cut
 
-sub view_recent_items : Chained( 'base' ) : PathPart( 'recent' ) : OptionalArgs( 2 ) {
+sub view_recent_items : Chained( 'base' ) : PathPart( 'recent' ) : Args {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= $self->items_per_page;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $self->get_recent_items( $c, $page, $count );
 
@@ -167,8 +171,8 @@ View items with a specified tag.
 sub view_tagged_items : Chained( 'base' ) : PathPart( 'tag' ) : Args {
 	my ( $self, $c, $tag, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= $self->items_per_page;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $self->get_tagged_items( $c, $tag, $page, $count );
 
@@ -188,12 +192,13 @@ sub view_favourites : Chained( 'base' ) : PathPart( 'favourites' ) : Args {
 
 	unless ( $c->user_exists ) {
 		$c->flash->{ error_msg } = 'You must be logged in to view your favourites.';
-		$c->response->redirect( $c->request->referer );
-		return;
+		my $url = $c->request->referer ? $c->request->referer : $c->uri_for( '/shop' );
+		$c->response->redirect( $url );
+		$c->detach;
 	}
 
-	$page  ||= 1;
-	$count ||= $self->items_per_page;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $self->get_favourites( $c, $page, $count );
 
@@ -217,8 +222,8 @@ sub view_recently_viewed : Chained( 'base' ) : PathPart( 'recently-viewed' ) : A
 		$c->detach;
 	}
 
-	$page  ||= 1;
-	$count ||= $self->items_per_page;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $self->get_recently_viewed( $c, $page, $count );
 
@@ -273,7 +278,7 @@ sub preview : Chained( 'get_item' ) PathPart( 'preview' ) : Args( 0 ) {
 	# Extract page details from form
 	my $new_details = {
 		name  => $c->request->param( 'name'  ) || 'No item name given',
-		code  => $c->request->param( 'code'  ) || 'No item code given',
+		code  => $c->request->param( 'code'  ) || 'no-item-name-given',
 		price => $c->request->param( 'price' ) || undef,
 		image => $c->request->param( 'image' ) || undef,
 		description => $c->request->param( 'description' ) || undef,
@@ -369,8 +374,8 @@ sub like_item : Chained( 'get_item' ) : PathPart( 'like' ) : Args( 0 ) {
 	if ( $self->can_like eq 'User' ) {
 		unless ( $c->user_exists ) {
 			$c->flash->{ error_msg } = 'You must be logged in to like this item.';
-			$c->response->redirect( $c->request->referer );
-			return;
+			$c->response->redirect( $item_url );
+			$c->detach;
 		}
 	}
 
@@ -488,8 +493,8 @@ Fetch items in the specified category.
 sub get_category_items : Private {
 	my ( $self, $c, $category_id, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= 10;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $items = $c->model( 'DB::ShopCategory' )->search(
 		{
@@ -520,8 +525,8 @@ Fetch items with a specified tag.
 sub get_tagged_items : Private {
 	my ( $self, $c, $tag, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= 10;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my @tags = $c->model( 'DB::Tag' )->search({
 		tag => $tag,
@@ -600,8 +605,8 @@ Fetch recently-added items.
 sub get_recent_items : Private {
 	my ( $self, $c, $page, $count, $order_by ) = @_;
 
-	$page  ||= 1;
-	$count ||= 10;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $options = {
 		page     => $page,
@@ -635,8 +640,8 @@ Fetch user's recently viewed items
 sub get_recently_viewed : Private {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= 10;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $viewed = $c->user->shop_item_views->search(
 		{
@@ -644,8 +649,8 @@ sub get_recently_viewed : Private {
 		},
 		{
 			order_by => { -desc => 'me.updated' },
-			join     => { 'item' },
-			prefetch => { 'item' },
+			join     => 'item',
+			prefetch => 'item',
 			page     => $page,
 			rows     => $count,
 		}
@@ -664,8 +669,8 @@ Fetch user's favourite items
 sub get_favourites : Private {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  ||= 1;
-	$count ||= 10;
+	$page  = $page  ? $page  : 1;
+	$count = $count ? $count : $self->page_size;
 
 	my $favourites = $c->user->shop_item_favourites->search_related('item')->search(
 		{
