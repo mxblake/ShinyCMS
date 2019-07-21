@@ -1,7 +1,7 @@
 package ShinyCMS::Controller::Admin::Users;
 
 use Moose;
-use MooseX::Types::Moose qw/ Str Int /;
+use MooseX::Types::Moose qw/ Int Str /;
 use namespace::autoclean;
 
 BEGIN { extends 'ShinyCMS::Controller'; }
@@ -24,16 +24,28 @@ has comments_default => (
 	default => 'Yes',
 );
 
-has profile_pic_file_size => (
+has email_mxcheck => (
 	isa     => Int,
 	is      => 'ro',
-	default => 1048576,		# 1 MiB
+	default => 1,
+);
+
+has email_tldcheck => (
+	isa     => Int,
+	is      => 'ro',
+	default => 1,
 );
 
 has page_size => (
 	isa     => Int,
 	is      => 'ro',
 	default => 20,
+);
+
+has profile_pic_file_size => (
+	isa     => Int,
+	is      => 'ro',
+	default => 1048576,		# 1 MiB
 );
 
 
@@ -56,9 +68,6 @@ sub base : Chained( '/base' ) : PathPart( 'admin/users' ) : CaptureArgs( 0 ) {
 			redirect => '/admin'
 		});
 	}
-
-	# Stash the upload_dir setting
-	$c->stash->{ upload_dir } = $c->config->{ upload_dir };
 
 	# Stash the controller name
 	$c->stash->{ admin_controller } = 'Users';
@@ -195,13 +204,13 @@ sub edit_user : Chained( 'get_user' ) : PathPart( 'edit' ) : Args( 0 ) {
 }
 
 
-=head2 edit_do
+=head2 save_user
 
 Update db with new user details.
 
 =cut
 
-sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub save_user : Chained( 'base' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Get the user ID for the user being edited
@@ -219,7 +228,7 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 
 			# Bounce back to the 'add user' page
 			$c->response->redirect( $c->uri_for( 'add' ) );
-			return;
+			$c->detach;
 		}
 	}
 
@@ -263,7 +272,7 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 		$c->flash->{ status_msg } = 'User deleted';
 
 		# Bounce to the default page
-		$c->response->redirect( $c->uri_for( 'list' ) );
+		$c->response->redirect( $c->uri_for( '/admin/users' ) );
 		return;
 	}
 
@@ -273,12 +282,12 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 	# Check it for validity
 	my $email_valid = Email::Valid->address(
 		-address  => $email,
-		-mxcheck  => 1,			# Comment out this line if developing offline
-		-tldcheck => 1,			# Comment out this line if developing offline
+		-mxcheck  => $self->email_mxcheck,
+		-tldcheck => $self->email_tldcheck,
 	);
 	unless ( $email_valid ) {
 		$c->flash->{ error_msg } = 'You must set a valid email address.';
-		my $uri = $c->uri_for( '/admin/users/user/add' );
+		my $uri = $c->uri_for( '/admin/users/add' );
 		$uri = $c->uri_for( '/admin/users/user', $user_id, 'edit' ) if $user_id;
 		$c->response->redirect( $uri );
 		$c->detach;
@@ -305,7 +314,7 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 		my $username;
 		$username = $user->username if $user;
 		$username = $c->request->param( 'username' ) unless $user;
-		my $path = $c->path_to( 'root', 'static', $c->stash->{ upload_dir }, 'user-profile-pics', $username );
+		my $path = $c->path_to( 'root', 'static', 'cms-uploads', 'user-profile-pics', $username );
 		mkdir $path unless -d $path;
 		my $save_as = $path .'/'. $profile_pic;
 		$file->copy_to( $save_as ) or die "Failed to write file '$save_as' because: $!,";
@@ -384,7 +393,7 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 	foreach my $input ( keys %{ $c->request->params } ) {
 		if ( $input =~ m/^date_group_(\d+)$/ ) {
 			my $group_id = $1;
-			my $expires_date = $c->request->params->{ $input };
+			my $expires_date = $c->request->param( $input );
 			if ( lc $expires_date eq 'never' ) {
 				# Non-expiring access
 				$user->user_accesses->create({
@@ -394,7 +403,7 @@ sub edit_do : Chained( 'base' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 			}
 			elsif ( $expires_date ) {
 				# We have an expiry date
-				my $expires_time = $c->request->params->{ 'time_group_' . $group_id };
+				my $expires_time = $c->request->param( 'time_group_' . $group_id );
 				my( $y, $mo, $d ) = split '-', $expires_date;
 				my( $h, $mi, $s ) = split ':', $expires_time;
 				my $bits = {
@@ -439,13 +448,8 @@ Update db with new password.
 
 =cut
 
-sub change_password_do : Chained( 'base' ) : PathPart( 'change-password-do' ) : Args( 0 ) {
+sub change_password_do : Chained( 'get_user' ) : PathPart( 'save-password' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-
-	# Fetch the user
-	my $user = $c->model( 'DB::User' )->find({
-		id => $c->request->param( 'user_id' ),
-	});
 
 	# Get the new password from the form
 	my $password_one = $c->request->param( 'password_one' );
@@ -454,21 +458,21 @@ sub change_password_do : Chained( 'base' ) : PathPart( 'change-password-do' ) : 
 	# Verify they're both the same
 	if ( $password_one eq $password_two ) {
 		# Update password in database
-		$user->update({
+		$c->stash->{ user }->update({
 			password        => $password_one,
 			forgot_password => 0,
 		});
 
 		# Shove a confirmation message into the flash
 		$c->flash->{ status_msg } = 'Password changed';
+		$c->response->redirect( $c->uri_for( '/admin/users' ) );
 	}
 	else {
 		# Shove an error message into the flash
 		$c->flash->{ error_msg } = 'Passwords did not match';
+		my $uri = $c->uri_for( '/admin/users/user', $c->stash->{ user }->id, 'change-password' );
+		$c->response->redirect( $uri );
 	}
-
-	# Bounce back to the user list
-	$c->response->redirect( $c->uri_for( 'list' ) );
 }
 
 
@@ -545,13 +549,13 @@ sub add_role : Chained( 'base' ) : PathPart( 'role/add' ) : Args( 0 ) {
 }
 
 
-=head2 add_role_do
+=head2 save_new_role
 
-Process adding a new role.
+Save details of a new role.
 
 =cut
 
-sub add_role_do : Chained( 'base' ) : PathPart( 'role/add-do' ) : Args( 0 ) {
+sub save_new_role : Chained( 'base' ) : PathPart( 'role/save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Create role
@@ -562,8 +566,9 @@ sub add_role_do : Chained( 'base' ) : PathPart( 'role/add-do' ) : Args( 0 ) {
 	# Shove a confirmation message into the flash
 	$c->flash->{ status_msg } = 'Role added';
 
-	# Bounce back to the list of roles
-	$c->response->redirect( $c->uri_for( 'roles' ) );
+	# Redirect to the edit page for the new role
+	my $uri = $c->uri_for( '/admin/users/role', $role->id, 'edit' );
+	$c->response->redirect( $uri );
 }
 
 
@@ -597,13 +602,13 @@ sub edit_role : Chained( 'get_role' ) : PathPart( 'edit' ) : Args( 0 ) {
 }
 
 
-=head2 edit_role_do
+=head2 save_role
 
-Process a role edit.
+Save changes to a role.
 
 =cut
 
-sub edit_role_do : Chained( 'get_role' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub save_role : Chained( 'get_role' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Process deletions
@@ -615,8 +620,8 @@ sub edit_role_do : Chained( 'get_role' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 		$c->flash->{ status_msg } = 'Role deleted';
 
 		# Bounce to the 'view all roles' page
-		$c->response->redirect( $c->uri_for( 'role/list' ) );
-		return;
+		$c->response->redirect( $c->uri_for( '/admin/users/roles' ) );
+		$c->detach;
 	}
 
 	# Update role
@@ -628,19 +633,19 @@ sub edit_role_do : Chained( 'get_role' ) : PathPart( 'edit-do' ) : Args( 0 ) {
 	$c->flash->{ status_msg } = 'Role updated';
 
 	# Bounce back to the list of roles
-	$c->response->redirect( $c->uri_for( 'roles' ) );
+	$c->response->redirect( $c->uri_for( '/admin/users/roles' ) );
 }
 
 
 # ========== ( Access ) ==========
 
-=head2 list_access
+=head2 list_access_groups
 
 List all the access groups.
 
 =cut
 
-sub list_access : Chained( 'base' ) : PathPart( 'access' ) : Args( 0 ) {
+sub list_access_groups : Chained( 'base' ) : PathPart( 'access-groups' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	my @access = $c->model( 'DB::Access' )->all;
@@ -648,26 +653,26 @@ sub list_access : Chained( 'base' ) : PathPart( 'access' ) : Args( 0 ) {
 }
 
 
-=head2 add_access
+=head2 add_access_group
 
 Add an access group.
 
 =cut
 
-sub add_access : Chained( 'base' ) : PathPart( 'access/add' ) : Args( 0 ) {
+sub add_access_group : Chained( 'base' ) : PathPart( 'access-group/add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
-	$c->stash->{ template } = 'admin/users/edit_access.tt';
+	$c->stash->{ template } = 'admin/users/edit_access_group.tt';
 }
 
 
-=head2 add_access_do
+=head2 save_new_access_group
 
-Process adding a new access group.
+Save details of a new access group.
 
 =cut
 
-sub add_access_do : Chained( 'base' ) : PathPart( 'access/add-do' ) : Args( 0 ) {
+sub save_new_access_group : Chained( 'base' ) : PathPart( 'access-group/save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Create access group
@@ -678,8 +683,9 @@ sub add_access_do : Chained( 'base' ) : PathPart( 'access/add-do' ) : Args( 0 ) 
 	# Shove a confirmation message into the flash
 	$c->flash->{ status_msg } = 'Access group added';
 
-	# Bounce back to the list of access types
-	$c->response->redirect( $c->uri_for( 'access/list' ) );
+	# Redirect to the edit page for the new access group
+	my $uri = $c->uri_for( '/admin/users/access-group', $access->id, 'edit' );
+	$c->response->redirect( $uri );
 }
 
 
@@ -689,7 +695,7 @@ Stash details of an access type.
 
 =cut
 
-sub get_access : Chained( 'base' ) : PathPart( 'access' ) : CaptureArgs( 1 ) {
+sub get_access : Chained( 'base' ) : PathPart( 'access-group' ) : CaptureArgs( 1 ) {
 	my ( $self, $c, $access_id ) = @_;
 
 	$c->stash->{ access } = $c->model( 'DB::Access' )->find({ id => $access_id });
@@ -697,29 +703,29 @@ sub get_access : Chained( 'base' ) : PathPart( 'access' ) : CaptureArgs( 1 ) {
 	unless ( $c->stash->{ access } ) {
 		$c->flash->{ error_msg } =
 			'Specified access group not found - please select from the options below';
-		$c->go('list_access');
+		$c->go( 'list_access_groups' );
 	}
 }
 
 
-=head2 edit_access
+=head2 edit_access_group
 
 Edit an access group.
 
 =cut
 
-sub edit_access : Chained( 'get_access' ) : PathPart( 'edit' ) : Args( 0 ) {
+sub edit_access_group : Chained( 'get_access' ) : PathPart( 'edit' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 }
 
 
-=head2 edit_access_do
+=head2 save_access_group
 
-Process an access group edit.
+Save changes to an access group.
 
 =cut
 
-sub edit_access_do : Chained( 'get_access' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub save_access_group : Chained( 'get_access' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Process deletions
@@ -728,23 +734,25 @@ sub edit_access_do : Chained( 'get_access' ) : PathPart( 'edit-do' ) : Args( 0 )
 		$c->stash->{ access }->delete;
 
 		# Shove a confirmation message into the flash
-		$c->flash->{ status_msg } = 'Access deleted';
+		$c->flash->{ status_msg } = 'Access group deleted';
 
 		# Bounce to the 'view all access groups' page
-		$c->response->redirect( $c->uri_for( 'access/list' ) );
-		return;
+		my $uri = $c->uri_for( '/admin/users/access-groups' );
+		$c->response->redirect( $uri );
+		$c->detach;
 	}
 
-	# Update access
+	# Update access group
 	$c->stash->{ access }->update({
 		access => $c->request->param( 'access' ),
 	});
 
 	# Shove a confirmation message into the flash
-	$c->flash->{ status_msg } = 'Access updated';
+	$c->flash->{ status_msg } = 'Access group updated';
 
-	# Bounce back to the list of access groups
-	$c->response->redirect( $c->uri_for( 'access/list' ) );
+	# Reload edit page
+	my $uri = $c->uri_for( '/admin/users/access-group', $c->stash->{ access }->id, 'edit' );
+	$c->response->redirect( $uri );
 }
 
 

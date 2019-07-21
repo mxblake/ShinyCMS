@@ -83,17 +83,17 @@ sub edit_shared_content : Chained( 'get_shared_content') : PathPart( 'edit' ) : 
 	$c->stash->{ types  } = get_element_types();
 
 	# Stash a list of images present in the images folder
-	$c->stash->{ images } = $c->controller( 'Root' )->get_filenames( $c, 'images' );
+	$c->stash->{ images } = $c->controller( 'Root' )->get_filenames( $c );
 }
 
 
-=head2 edit_shared_content_do
+=head2 save_shared_content
 
-Process shared content update.
+Save changes to shared content item.
 
 =cut
 
-sub edit_shared_content_do : Chained( 'get_shared_content' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub save_shared_content : Chained( 'get_shared_content' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Extract elements from form

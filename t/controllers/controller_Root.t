@@ -15,6 +15,7 @@ use warnings;
 
 use Test::More;
 use Test::WWW::Mechanize::Catalyst::WithContext;
+use Try::Tiny;
 
 use lib 't/support';
 require 'login_helpers.pl';  ## no critic
@@ -139,10 +140,53 @@ $stylesheet_cookie = $t->cookie_jar->get_cookies(
 	'127.0.0.1',
 	'stylesheet'
 );
-my $removed = $stylesheet_cookie ? 0 : 1;
+my $removed1 = $stylesheet_cookie ? 0 : 1;
 ok(
-	$removed == 1,
+	$removed1 == 1,
 	'Verified that stylesheet cookie was removed'
+);
+
+# Mobile override
+$t->get_ok(
+	'/mobile-override/on',
+	"Set mobile override to 'on'"
+);
+$t->title_is(
+	'Home - ShinySite',
+	'Redirected to homepage'
+);
+my $mobile_cookie = $t->cookie_jar->get_cookies(
+	'127.0.0.1',
+	'mobile_override'
+);
+ok(
+	$mobile_cookie eq 'on',
+	"Verified that mobile_override cookie was set to 'on'"
+);
+$t->get_ok(
+	'/mobile-override/off',
+	"Set mobile override to 'on'"
+);
+$mobile_cookie = $t->cookie_jar->get_cookies(
+	'127.0.0.1',
+	'mobile_override'
+);
+ok(
+	$mobile_cookie eq 'off',
+	"Verified that mobile_override cookie was set to 'off'"
+);
+$t->get_ok(
+	'/mobile-override/neither',
+	'Clear mobile override setting'
+);
+$mobile_cookie = $t->cookie_jar->get_cookies(
+	'127.0.0.1',
+	'mobile_override'
+);
+my $removed2 = $mobile_cookie ? 0 : 1;
+ok(
+	$removed2 == 1,
+	'Verified that mobile_override cookie was removed'
 );
 
 # 404
@@ -163,6 +207,21 @@ $t->title_is(
 	'Sitemap - ShinySite',
 	'Reached sitemap page'
 );
+
+# Try to get filenames when image directory is missing
+$c = $t->ctx;
+my $image_dir = $c->path_to( 'root/static/cms-uploads/images' );
+system( "mv $image_dir $image_dir.test" );
+try {
+	ShinyCMS::Controller::Root->get_filenames( $c );
+}
+catch {
+	ok(
+		m{Failed to open image directory},
+		'Caught die() for get_filenames() when image directory is missing.'
+	);
+};
+system( "mv $image_dir.test $image_dir" );
 
 
 # Tidy up

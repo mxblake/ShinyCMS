@@ -46,9 +46,6 @@ sub base : Chained( '/base' ) : PathPart( 'admin/newsletters' ) : CaptureArgs( 0
 		redirect => '/newsletters'
 	});
 
-	# Stash the upload_dir setting
-	$c->stash->{ upload_dir } = $c->config->{ upload_dir };
-
 	# Stash the controller name
 	$c->stash->{ admin_controller } = 'Newsletters';
 }
@@ -285,23 +282,22 @@ sub edit_newsletter_do : Chained( 'base' ) : PathPart( 'save' ) : Args( 0 ) {
 	#}
 
 	# Extract newsletter elements from form
+	my $is_template_admin = 
+		$c->user->has_role( 'Newsletter Template Admin' ) ? 1 : 0;
 	my $elements = {};
 	foreach my $input ( keys %{$c->request->params} ) {
+		if ( $input =~ m/^content_(\d+)$/ ) {
+			my $id = $1;
+			$elements->{ $id }{ 'content' } = $c->request->param( $input );
+		}
+		next unless $is_template_admin;
 		if ( $input =~ m/^name_(\d+)$/ ) {
-			# skip unless user is a template admin
-			next unless $c->user->has_role( 'Newsletter Template Admin' );
 			my $id = $1;
 			$elements->{ $id }{ 'name'    } = $c->request->param( $input );
 		}
-		if ( $input =~ m/^type_(\d+)$/ ) {
-			# skip unless user is a template admin
-			next unless $c->user->has_role( 'Newsletter Template Admin' );
+		elsif ( $input =~ m/^type_(\d+)$/ ) {
 			my $id = $1;
 			$elements->{ $id }{ 'type'    } = $c->request->param( $input );
-		}
-		elsif ( $input =~ m/^content_(\d+)$/ ) {
-			my $id = $1;
-			$elements->{ $id }{ 'content' } = $c->request->param( $input );
 		}
 	}
 
@@ -671,8 +667,8 @@ sub get_autoresponder : Chained( 'base' ) : PathPart( 'autoresponder' ) : Captur
 	});
 
 	unless ( $c->stash->{ autoresponder } ) {
-		$c->flash->{ error_msg } = 'Failed to find details of specified autoresponder.';
-		$c->detach;
+		$c->stash->{ error_msg } = 'Failed to find details of specified autoresponder.';
+		$c->go( 'list_autoresponders' );
 	}
 }
 
@@ -725,6 +721,10 @@ sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'save' ) 
 		foreach my $ar_email ( @ar_emails ) {
 			$ar_email->autoresponder_email_elements->delete;
 		}
+		my @emails = $c->stash->{ autoresponder }->autoresponder_emails->search({})->all;
+		foreach my $email ( @emails ) {
+			$email->queued_emails->delete;
+		}
 		$c->stash->{ autoresponder }->autoresponder_emails->delete;
 		$c->stash->{ autoresponder }->delete;
 
@@ -760,7 +760,7 @@ sub edit_autoresponder_do : Chained( 'get_autoresponder' ) : PathPart( 'save' ) 
 		url_name     => $url_name,
 		description  => $c->request->param( 'description'  ),
 		mailing_list => $c->request->param( 'mailing_list' ) || undef,
-		has_captcha  => $has_captcha || 0,
+		has_captcha  => $has_captcha,
 	});
 
 	# Redirect to edit page
@@ -779,10 +779,6 @@ Add a new autoresponder email.
 
 sub add_autoresponder_email : Chained( 'get_autoresponder' ) : PathPart( 'email/add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
-
-	# Stash the list of available mailing lists
-	my @lists = $c->model( 'DB::MailingList' )->all;
-	$c->stash->{ mailing_lists } = \@lists;
 
 	# Fetch the list of available templates
 	my @templates = $c->model( 'DB::NewsletterTemplate' )->all;
@@ -847,8 +843,8 @@ sub get_autoresponder_email : Chained( 'get_autoresponder' ) : PathPart( 'email'
 	});
 
 	unless ( $c->stash->{ autoresponder_email } ) {
-		$c->flash->{ error_msg } = 'Failed to find details of specified autoresponder email.';
-		$c->detach;
+		$c->stash->{ error_msg } = 'Failed to find details of specified autoresponder email.';
+		$c->go( 'edit_autoresponder', [ $c->stash->{ autoresponder }->id ], [] );
 	}
 }
 
@@ -894,7 +890,7 @@ Process a autoresponder_email update.
 
 =cut
 
-sub edit_autoresponder_email_do : Chained( 'get_autoresponder_email' ) : PathPart( 'edit-do' ) : Args( 0 ) {
+sub edit_autoresponder_email_do : Chained( 'get_autoresponder_email' ) : PathPart( 'save' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Process deletions
@@ -980,7 +976,7 @@ Preview a autoresponder_email.
 
 =cut
 
-sub preview_email : Chained( 'get_autoresponder_email' ) PathPart( 'preview' ) : Args( 0 ) {
+sub preview_email : Chained( 'get_autoresponder_email' ) : PathPart( 'preview' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Get the updated email details from the form
@@ -1027,10 +1023,10 @@ sub preview_email : Chained( 'get_autoresponder_email' ) PathPart( 'preview' ) :
 	}
 
 	# Over-ride everything
-	$c->stash->{ autoresponder_email } = $new_details;
-	$c->stash->{ elements } = $new_elements;
-	$c->stash->{ template } = 'newsletters/newsletter-templates/'. $new_template;
-	$c->stash->{ preview  } = 'preview';
+	$c->stash->{ newsletter } = $new_details;
+	$c->stash->{ elements   } = $new_elements;
+	$c->stash->{ template   } = 'newsletters/newsletter-templates/'. $new_template;
+	$c->stash->{ preview    } = 'preview';
 }
 
 
@@ -1256,16 +1252,12 @@ Add a new paid list email.
 sub add_paid_list_email : Chained( 'get_paid_list' ) : PathPart( 'email/add' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
-	# Stash the list of available mailing lists
-	my @lists = $c->model( 'DB::MailingList' )->all;
-	$c->stash->{ mailing_lists } = \@lists;
-
 	# Fetch the list of available templates
 	my @templates = $c->model( 'DB::NewsletterTemplate' )->all;
 	$c->stash->{ templates } = \@templates;
 
 	# Set the TT template to use
-	$c->stash->{template} = 'admin/newsletters/edit_paid_list_email.tt';
+	$c->stash->{ template } = 'admin/newsletters/edit_paid_list_email.tt';
 }
 
 
@@ -1456,7 +1448,7 @@ Preview a paid list email.
 
 =cut
 
-sub preview_paid_email : Chained( 'get_paid_list_email' ) PathPart( 'preview' ) : Args( 0 ) {
+sub preview_paid_email : Chained( 'get_paid_list_email' ) : PathPart( 'preview' ) : Args( 0 ) {
 	my ( $self, $c ) = @_;
 
 	# Get the updated email details from the form
@@ -1503,10 +1495,10 @@ sub preview_paid_email : Chained( 'get_paid_list_email' ) PathPart( 'preview' ) 
 	}
 
 	# Over-ride everything
-	$c->stash->{ paid_list_email } = $new_details;
-	$c->stash->{ elements } = $new_elements;
-	$c->stash->{ template } = 'newsletters/newsletter-templates/'. $new_template;
-	$c->stash->{ preview  } = 'preview';
+	$c->stash->{ newsletter } = $new_details;
+	$c->stash->{ elements   } = $new_elements;
+	$c->stash->{ template   } = 'newsletters/newsletter-templates/'. $new_template;
+	$c->stash->{ preview    } = 'preview';
 }
 
 

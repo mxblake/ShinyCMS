@@ -21,7 +21,7 @@
 [%- END %]
 [% IF user.profile_pic %]
 <p>
-	<img id="user_profile_pic" class="outlined" src="[% c.uri_for( '/static', upload_dir, 'user-profile-pics', user.username, user.profile_pic ) %]" alt="Picture of [% user.display_name || user.username | html %]">
+	<img id="user_profile_pic" class="outlined" src="[% c.uri_for( '/static/cms-uploads/user-profile-pics', user.username, user.profile_pic ) %]" alt="Picture of [% user.display_name || user.username | html %]">
 </p>
 [%- END %]
 [% IF user.website %]
@@ -123,9 +123,9 @@
 	Email: <a href="mailto:[% user.email | html %]">[% user.email | html %]</a>
 </p>
 
-<p>
-	<span class="label">Roles</span>
-</p>
+<h4>
+	Roles
+</h4>
 <ul>
 [%- FOREACH role IN user.roles %]
 	<li>[% role.role | html %]</li>
@@ -135,9 +135,9 @@
 
 
 [%- IF c.user.has_role( 'User Admin' ) %]
-<h3>
+<h4>
 	Admin Notes
-</h3>
+</h4>
 <p>
 	[% user.admin_notes || 'None.' | html %]
 </p>

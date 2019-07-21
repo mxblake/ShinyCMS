@@ -48,9 +48,6 @@ Sets up the base part of the URL path.
 sub base : Chained( '/base' ) : PathPart( 'shop' ) : CaptureArgs( 0 ) {
 	my ( $self, $c ) = @_;
 
-	# Stash the upload_dir setting
-	$c->stash->{ upload_dir } = $c->config->{ upload_dir };
-
 	# Stash the currency symbol
 	$c->stash->{ currency } = $self->currency;
 
@@ -493,9 +490,6 @@ Fetch items in the specified category.
 sub get_category_items : Private {
 	my ( $self, $c, $category_id, $page, $count ) = @_;
 
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
-
 	my $items = $c->model( 'DB::ShopCategory' )->search(
 		{
 			id     => $category_id,
@@ -524,9 +518,6 @@ Fetch items with a specified tag.
 
 sub get_tagged_items : Private {
 	my ( $self, $c, $tag, $page, $count ) = @_;
-
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
 
 	my @tags = $c->model( 'DB::Tag' )->search({
 		tag => $tag,
@@ -605,9 +596,6 @@ Fetch recently-added items.
 sub get_recent_items : Private {
 	my ( $self, $c, $page, $count, $order_by ) = @_;
 
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
-
 	my $options = {
 		page     => $page,
 		rows     => $count,
@@ -640,9 +628,6 @@ Fetch user's recently viewed items
 sub get_recently_viewed : Private {
 	my ( $self, $c, $page, $count ) = @_;
 
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
-
 	my $viewed = $c->user->shop_item_views->search(
 		{
 			'item.hidden' => 0,
@@ -668,9 +653,6 @@ Fetch user's favourite items
 
 sub get_favourites : Private {
 	my ( $self, $c, $page, $count ) = @_;
-
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
 
 	my $favourites = $c->user->shop_item_favourites->search_related('item')->search(
 		{

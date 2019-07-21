@@ -25,6 +25,7 @@ my $schema = get_schema();
 # If we're in test mode, wipe the data first
 if ( defined $ENV{ SHINYCMS_TEST } ) {
 	$schema->resultset( 'BasketItem' )->delete;
+	$schema->resultset( 'Basket'     )->delete;
 	$schema->resultset( 'OrderItem'  )->delete;
 	$schema->resultset( 'Order'      )->delete;
 	$schema->resultset( 'ShopProductTypeElement' )->delete;
@@ -149,7 +150,7 @@ $shop_item2->shop_item_postage_options->find_or_create({
 my $shop_item3 = $product_type2->shop_items->find_or_create({
 	code        => 'green-ambi-widget',
 	name        => 'Green ambidextrous widget',
-	description => 'A green widget; swings both ways.',
+	description => 'A green widget; swings both ways. Well tested.',
 	image       => 'razer.jpg',
 	price       => '1.23',
 });
