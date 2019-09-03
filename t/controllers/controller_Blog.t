@@ -45,13 +45,18 @@ $t->title_is(
 	"Posts tagged 'truck' - ShinySite",
 	'Reached list of tagged blog posts'
 );
-# Look at older posts
+# Look at older tagged posts
+$t->get_ok(
+	'/blog/tag/truck?page=2&count=3',
+	'View some older tagged posts'
+);
+# Look at older untagged posts
 $t->follow_link_ok(
 	{ text => 'Blog' },
 	'Click on menu link for blog'
 );
 $t->follow_link_ok(
-	{ text_regex => qr{^Older} },
+	{ text_regex => qr{Older$} },
 	'Click on link to older posts'
 );
 # Look at a post with comments
@@ -77,6 +82,20 @@ $t->follow_link_ok(
 	{ text => 'w1n5t0n' },
 	'Click on link to author profile'
 );
+# Look at older posts by author
+$t->get_ok(
+	'/blog/author/w1n5t0n?page=2&count=3',
+	'View some older posts by an author'
+);
+# Try to view a post that doesn't exist
+$t->get_ok(
+	'/blog/2013/1/no-such-blog-post',
+	"Try to view a post that doesn't exist"
+);
+$t->text_contains(
+	'Failed to find specified blog post.',
+	'Failed to find non-existent blog post'
+);
 # View a post with comments disabled
 $t->get_ok(
 	'/blog/2013/1/anything-they-ask',
@@ -91,8 +110,8 @@ $t->get_ok(
 	'/blog/2013/1/kidnapped',
 	'View a blog post with no tags'
 );
-$t->text_unlike(
-	qr{Tags\:},
+$t->text_lacks(
+	'Tags:',
 	'Verified that there are no tags on this post'
 );
 # View blog posts from a specified author
@@ -171,6 +190,28 @@ ok(
 $t->text_contains(
 	'Month must be a number between 1 and 12',
 	'Got helpful error message'
+);
+
+
+# get_tags() isn't used in current demo templates, but is used by some end users
+my $c = $t->ctx;
+my $tags = $c->controller( 'Blog' )->get_tags( $c );
+ok(
+	ref $tags eq 'ARRAY',
+	'Controller::Blog->get_tags() returns an arrayref'
+);
+ok(
+	"@$tags" eq 'USA armed forces cell crowds demo explosions interview paperwork phone prison school sirens surveillance terrorism toilet break truck yard',
+	'The tags are the ones we expect from the demo data, in alphabetical order'
+);
+
+# Call search method without setting search param
+my $results = $c->controller( 'Blog' )->search( $c );
+my $returns_undef = defined $results ? 0 : 1;
+my $no_results    = defined $c->stash->{ blog_results } ? 0 : 1;
+ok(
+	$returns_undef && $no_results,
+	"search() without param('search') set returns undef & stashes no results"
 );
 
 done_testing();

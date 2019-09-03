@@ -61,7 +61,6 @@ $t->submit_form_ok({
 		password  => $username,
 		password2 => $username,
 		email     => $username.'@shinycms.org',
-		'g-recaptcha-response' => 'fake'
 	}},
 	'Submitted registration form with invalid username'
 );
@@ -76,7 +75,6 @@ $t->submit_form_ok({
 		password  => $username,
 		password2 => $username,
 		email     => $username.'@shinycms.org',
-		'g-recaptcha-response' => 'fake'
 	}},
 	'Submitted registration form with already-taken username'
 );
@@ -91,7 +89,6 @@ $t->submit_form_ok({
 		password  => $username,
 		password2 => 'Hunter2',
 		email     => $username.'@shinycms.org',
-		'g-recaptcha-response' => 'fake'
 	}},
 	'Submitted registration form with not-matching passwords'
 );
@@ -240,7 +237,7 @@ $t->submit_form_ok({
 		lastname  => 'User',
 		allow_comments => undef,
 	}},
-	'Submitted form to update user name fields, and add a profile discussion'
+	'Submitted form to update user name fields, and remove profile comment wall'
 );
 $t->title_is(
 	'Edit user details - ShinySite',
@@ -263,12 +260,18 @@ $t->text_contains(
 	'You must set a valid email address.',
 	'Got error message about invalid email address'
 );
+my $pic_file = [
+	'root/static/cms-uploads/user-profile-pics/admin/space-invader.png',
+	'space-invader.png',
+];
 $t->submit_form_ok({
 	form_id => 'edit_user',
 	fields => {
 		allow_comments => 'on',
+#		profile_pic    => $pic_file,
+		profile_pic    => 'README.md',
 	}},
-	'Submitted form again, to remove the profile discussion'
+	'Submitted form again, to re-enable profile wall and add a profile pic'
 );
 
 # Change password

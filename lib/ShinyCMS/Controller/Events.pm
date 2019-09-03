@@ -87,17 +87,12 @@ sub view_month : Chained( 'base' ) : PathPart( '' ) : Args( 2 ) {
 		month => $month,
 		year  => $year,
 	);
-	my $month_end = DateTime->new(
-		day   => 1,
-		month => $month,
-		year  => $year,
-	);
-	$month_end->add( months => 1 );
+	my $month_end = $month_start->clone->add( months => 1 );
 
 	my @events = $c->model( 'DB::Event' )->search({
 		-and => [
 			end_date   => { '>=' => $month_start->ymd },
-			start_date => { '<=' => $month_end->ymd   },
+			start_date => { '<'  => $month_end->ymd   },
 		],
 	});
 
@@ -129,18 +124,13 @@ sub view_event : Chained( 'base' ) : PathPart( '' ) : Args( 3 ) {
 		month => $month,
 		year  => $year,
 	);
-	my $month_end = DateTime->new(
-		day   => 1,
-		month => $month,
-		year  => $year,
-	);
-	$month_end->add( months => 1 );
+	my $month_end = $month_start->clone->add( months => 1 );
 
 	$c->stash->{ event } = $c->model( 'DB::Event' )->search({
 		url_name => $url_name,
 		-and => [
 			start_date => { '>=' => $month_start->ymd },
-			start_date => { '<=' => $month_end->ymd   },
+			start_date => { '<'  => $month_end->ymd   },
 		],
 	})->first;
 
@@ -193,10 +183,8 @@ Search the events section.
 sub search {
 	my ( $self, $c ) = @_;
 
-	return unless $c->request->param( 'search' );
+	return unless my $search = $c->request->param( 'search' );
 
-	my $search = $c->request->param( 'search' );
-	my $events = [];
 	my @results = $c->model( 'DB::Event' )->search({
 		-or => [
 			name        => { 'LIKE', '%'.$search.'%'},
@@ -204,7 +192,9 @@ sub search {
 			address     => { 'LIKE', '%'.$search.'%'},
 			postcode    => { 'LIKE', '%'.$search.'%'},
 		],
-	});
+	})->all;
+
+	my $events = [];
 	foreach my $result ( @results ) {
 		# Pull out the matching search term and its immediate context
 		my $match = '';
@@ -222,7 +212,7 @@ sub search {
 		}
 		# Tidy up and mark the truncation
 		unless ( $match eq $result->name or $match eq $result->description
-				or $match eq $result->address or $match eq $result->postocde ) {
+				or $match eq $result->address or $match eq $result->postcode ) {
 				$match =~ s/^\S*\s/... / unless $match =~ m/^$search/i;
 				$match =~ s/\s\S*$/ .../ unless $match =~ m/$search$/i;
 		}
@@ -236,7 +226,9 @@ sub search {
 		# Push the result onto the results array
 		push @$events, $result;
 	}
+
 	$c->stash->{ events_results } = $events;
+	return $events;
 }
 
 

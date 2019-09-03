@@ -23,6 +23,9 @@ Checks to see if a recaptcha submission is good.
 sub recaptcha_result {
 	my( $self, $c ) = @_;
 
+	# Shortcut the reCaptcha check; used by test suite
+	return { is_valid => 1 } if $ENV{ RECAPTCHA_OFF };
+
 	my $rc = Captcha::reCAPTCHA->new;
 
 	my $result = $rc->check_answer_v2(
@@ -30,8 +33,6 @@ sub recaptcha_result {
 		$c->request->param( 'g-recaptcha-response' ),
 		$c->request->address,
 	);
-
-	return { is_valid => 1 } if $ENV{ RECAPTCHA_OFF };
 	return $result;
 }
 
@@ -67,7 +68,7 @@ sub user_exists_and_can {
 	my $action = $args->{ action };
 	die 'Attempted authorisation check without action.' unless $action;
 
-	# Bounce if user isn't logged in
+	# Display login page if user isn't already logged in
 	unless ( $c->user_exists ) {
 		$c->stash( error_msg  => "You must be logged in to $action.");
 		$c->go( '/admin/user/login' );

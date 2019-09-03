@@ -47,6 +47,10 @@ h1, h2, h3, h4 {
 	font-size:		smaller;
 }
 
+.right {
+	float:		right;
+}
+
 input.textnumber {
 	max-width:			3rem;
 	text-align:			right;
@@ -79,7 +83,6 @@ input[type=text] {
 	line-height:		2rem !important;
 	padding:			0.2rem !important;
 	font-size:			1rem;
-	margin-right:		1rem;
 }
 
 input[type=submit] {
@@ -109,6 +112,25 @@ form label {
 	letter-spacing: 	0;
 }
 
+ul.disc {
+	list-style:			disc outside;
+	margin-bottom:		20px;
+}
+
+ul.circle {
+	list-style:			circle outside;
+	margin-bottom:		0;
+}
+
+ul.square {
+	list-style:			square outside;
+	margin-bottom:		0;
+}
+
+#content li {
+	margin-left:		1.5em;
+}
+
 
 /* =========== ( Header ) ========== */
 
@@ -129,7 +151,7 @@ form label {
 
 #header-search {
 	float:			right;
-	height:			24px;
+	height:			28px;
 	width:			180px;
 	margin:			26px 14px;
 }

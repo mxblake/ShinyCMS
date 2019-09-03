@@ -56,7 +56,7 @@ sub view_forums : Chained( 'base' ) : PathPart( '' ) : Args( 0 ) {
 		{
 			order_by => 'display_order',
 		},
-	);
+	)->all;
 
 	$c->stash->{ forum_sections } = \@sections;
 }
@@ -87,23 +87,21 @@ Display a page of forum posts with a particular tag.
 =cut
 
 sub view_tag : Chained( 'base' ) : PathPart( 'tag' ) : Args( 1 ) {
-	my ( $self, $c, $tag, $page, $count ) = @_;
+	my ( $self, $c, $tag ) = @_;
 
-	$c->go( 'view_recent' ) unless $tag;
-
-	# TODO: Make pagination work
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
+	my $count = $c->request->param( 'count' ) ?
+				$c->request->param( 'count' ) : $self->page_size;
+	my $page  = $c->request->param( 'page'  ) ?
+				$c->request->param( 'page'  ) : 1;
 
 	my $posts = $self->get_tagged_posts( $c, $tag, $page, $count );
 
-	$c->stash->{ tag        } = $tag;
-	$c->stash->{ page_num   } = $page;
-	$c->stash->{ post_count } = $count;
-
+	$c->stash->{ tag         } = $tag;
+	$c->stash->{ page_num    } = $page;
+	$c->stash->{ post_count  } = $count;
 	$c->stash->{ forum_posts } = $posts;
 
-	$c->stash->{ template   } = 'forums/view_forum.tt';
+	$c->stash->{ template    } = 'forums/view_forum.tt';
 }
 
 
@@ -116,48 +114,36 @@ Display first page of posts in a specified forum.
 sub view_forum : Chained( 'base' ) : PathPart( '' ) : Args( 2 ) {
 	my ( $self, $c, $section_name, $forum_name ) = @_;
 
-	$self->stash_forum( $c, $section_name, $forum_name );
+	$c->stash->{ section } = $c->model( 'DB::ForumSection' )->search({
+		url_name => $section_name,
+	})->first;
+	$c->stash->{ forum } = $c->stash->{ section }->forums->search({
+		url_name => $forum_name,
+	})->first;
 
-	my $post_count = $self->page_size;
+	my $count = $c->request->param( 'count' ) ?
+				$c->request->param( 'count' ) : $self->page_size;
+	my $page  = $c->request->param( 'page'  ) ?
+				$c->request->param( 'page'  ) : 1;
 
-	my $forum_posts  = $self->get_posts(
-		$c, $c->stash->{ section }, $c->stash->{ forum }, 1, $post_count,
+	$c->stash->{ sticky_posts } = $c->stash->{ forum }->sticky_posts->search(
+		{},
+		{
+			page => $page,
+			rows => $count,
+		}
 	);
-	my $sticky_posts = $self->get_sticky_posts(
-		$c, $c->stash->{ section }, $c->stash->{ forum }
-	);
-
-	$c->stash->{ page_num     } = 1;
-	$c->stash->{ post_count   } = $post_count;
-	$c->stash->{ forum_posts  } = $forum_posts;
-	$c->stash->{ sticky_posts } = $sticky_posts;
-}
-
-
-=head2 view_forum_page
-
-Display specified page of posts in a specified forum.
-
-=cut
-
-sub view_forum_page : Chained( 'base' ) : PathPart( 'page' ) : OptionalArgs( 2 ) {
-	my ( $self, $c, $section_name, $forum_name, $page, $count ) = @_;
-
-	$self->stash_forum( $c, $section_name, $forum_name );
-
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
-
-	my $forum_posts  = $self->get_posts(
-		$c, $c->stash->{ section }, $c->stash->{ forum }, $page, $count
+	$c->stash->{ forum_posts } = $c->stash->{ forum }->non_sticky_posts->search(
+		{},
+		{
+			order_by => [ { -desc => 'commented_on' }, { -desc => 'posted' } ],
+			page     => $page,
+			rows     => $count,
+		}
 	);
 
-	$c->stash->{ page_num     } = $page;
-	$c->stash->{ post_count   } = $count;
-
-	$c->stash->{ forum_posts  } = $forum_posts;
-
-	$c->stash->{ template     } = 'forums/view_forum.tt';
+	$c->stash->{ page_num   } = $page;
+	$c->stash->{ post_count } = $count;
 }
 
 
@@ -167,21 +153,22 @@ Display a page of forum posts by a particular author.
 
 =cut
 
-sub view_posts_by_author : Chained( 'base' ) : PathPart( 'author' ) : OptionalArgs( 3 ) {
-	my ( $self, $c, $author, $page, $count ) = @_;
+sub view_posts_by_author : Chained( 'base' ) : PathPart( 'author' ) : Args( 1 ) {
+	my ( $self, $c, $author ) = @_;
 
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : $self->page_size;
+	my $count = $c->request->param( 'count' ) ?
+				$c->request->param( 'count' ) : $self->page_size;
+	my $page  = $c->request->param( 'page'  ) ?
+				$c->request->param( 'page'  ) : 1;
 
 	my $posts = $self->get_posts_by_author( $c, $author, $page, $count );
 
-	$c->stash->{ author     } = $author;
-	$c->stash->{ page_num   } = $page;
-	$c->stash->{ post_count } = $count;
-
+	$c->stash->{ author      } = $author;
+	$c->stash->{ page_num    } = $page;
+	$c->stash->{ post_count  } = $count;
 	$c->stash->{ forum_posts } = $posts;
 
-	$c->stash->{ template   } = 'forums/view_posts.tt';
+	$c->stash->{ template    } = 'forums/view_forum.tt';
 }
 
 
@@ -271,8 +258,8 @@ sub add_post_do : Chained( 'base' ) : PathPart( 'add-post-do' ) : Args( 0 ) {
 	my $post = $c->model( 'DB::ForumPost' )->create({
 		author    => $c->user->id,
 		title     => $c->request->param( 'title' ),
-		url_title => $url_title || undef,
-		body      => $body      || undef,
+		url_title => $url_title,
+		body      => $body,
 		forum     => $c->request->param( 'forum' ),
 	});
 
@@ -308,87 +295,6 @@ sub add_post_do : Chained( 'base' ) : PathPart( 'add-post-do' ) : Args( 0 ) {
 
 # ========== ( utility methods ) ==========
 
-=head2 stash_forum
-
-Stash details of a forum
-
-=cut
-
-sub stash_forum : Private {
-	my ( $self, $c, $section_name, $forum_name ) = @_;
-
-	$c->stash->{ section } = $c->model( 'DB::ForumSection' )->find({
-		url_name => $section_name,
-	});
-	$c->stash->{ forum } = $c->stash->{ section }->forums->find({
-		url_name => $forum_name,
-	});
-}
-
-
-=head2 get_posts
-
-Get a page's worth of posts (excludes sticky posts)
-
-=cut
-
-sub get_posts : Private {
-	my ( $self, $c, $section, $forum, $page, $count ) = @_;
-
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : 20;
-
-	my @posts = $forum->non_sticky_posts->search(
-		{},
-		{
-			order_by => [ { -desc => 'commented_on' }, { -desc => 'posted' } ],
-			page     => $page,
-			rows     => $count,
-		},
-	)->all;
-
-	my $tagged_posts = [];
-	foreach my $post ( @posts ) {
-		# Stash the tags
-		$post->{ tags } = $self->get_tags( $c, $post->id );
-		push @$tagged_posts, $post;
-	}
-
-	return $tagged_posts;
-}
-
-
-=head2 get_sticky_posts
-
-Get a page's worth of sticky posts
-
-=cut
-
-sub get_sticky_posts : Private {
-	my ( $self, $c, $section, $forum, $page, $count ) = @_;
-
-	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : 20;
-
-	my @posts = $forum->sticky_posts->search(
-		{},
-		{
-			page => $page,
-			rows => $count,
-		}
-	)->all;
-
-	my $tagged_posts = [];
-	foreach my $post ( @posts ) {
-		# Stash the tags
-		$post->{ tags } = $self->get_tags( $c, $post->id );
-		push @$tagged_posts, $post;
-	}
-
-	return $tagged_posts;
-}
-
-
 =head2 get_post
 
 =cut
@@ -417,7 +323,6 @@ sub get_tags : Private {
 	});
 
 	return $tagset->tag_list if $tagset;
-	return;
 }
 
 
@@ -431,7 +336,7 @@ sub get_tagged_posts : Private {
 	my ( $self, $c, $tag, $page, $count ) = @_;
 
 	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : 20;
+	$count = $count ? $count : $self->page_size;
 
 	my @tags = $c->model( 'DB::Tag' )->search({
 		tag => $tag,
@@ -446,7 +351,7 @@ sub get_tagged_posts : Private {
 		push @tagged, $tagset->get_column( 'resource_id' ),
 	}
 
-	my @posts = $c->model( 'DB::ForumPost' )->search(
+	return $c->model( 'DB::ForumPost' )->search(
 		{
 			id       => { 'in' => \@tagged },
 			posted   => { '<=' => \'current_timestamp' },
@@ -457,15 +362,6 @@ sub get_tagged_posts : Private {
 			rows     => $count,
 		},
 	);
-
-	my $tagged_posts = ();
-	foreach my $post ( @posts ) {
-		# Stash the tags
-		$post->{ tags } = $self->get_tags( $c, $post->id );
-		push @$tagged_posts, $post;
-	}
-
-	return $tagged_posts;
 }
 
 
@@ -479,13 +375,13 @@ sub get_posts_by_author : Private {
 	my ( $self, $c, $username, $page, $count ) = @_;
 
 	$page  = $page  ? $page  : 1;
-	$count = $count ? $count : 20;
+	$count = $count ? $count : $self->page_size;
 
 	my $author = $c->model( 'DB::User' )->find({
 		username => $username,
 	});
 
-	my @posts = $c->model( 'DB::ForumPost' )->search(
+	return $c->model( 'DB::ForumPost' )->search(
 		{
 			author   => $author->id,
 			posted   => { '<=' => \'current_timestamp' },
@@ -494,17 +390,8 @@ sub get_posts_by_author : Private {
 			order_by => { -desc => 'posted' },
 			page     => $page,
 			rows     => $count,
-		},
+		}
 	);
-
-	my $tagged_posts = ();
-	foreach my $post ( @posts ) {
-		# Stash the tags
-		$post->{ tags } = $self->get_tags( $c, $post->id );
-		push @$tagged_posts, $post;
-	}
-
-	return $tagged_posts;
 }
 
 
@@ -646,44 +533,47 @@ Search the forums.
 sub search {
 	my ( $self, $c ) = @_;
 
-	if ( $c->request->param( 'search' ) ) {
-		my $search = $c->request->param( 'search' );
-		my $forum_posts = [];
-		my @results = $c->model( 'DB::ForumPost' )->search({
-			-and => [
-				posted    => { '<=' => \'current_timestamp' },
-				-or => [
-					title => { 'LIKE', '%'.$search.'%'},
-					body  => { 'LIKE', '%'.$search.'%'},
-				],
-			],
-		});
-		foreach my $result ( @results ) {
-			# Pull out the matching search term and its immediate context
-			my $match = '';
-			if ( $result->title =~ m/(.{0,50}$search.{0,50})/is ) {
-				$match = $1;
-			}
-			elsif ( $result->body =~ m/(.{0,50}$search.{0,50})/is ) {
-				$match = $1;
-			}
-			# Tidy up and mark the truncation
-			unless ( $match eq $result->title or $match eq $result->body ) {
-				$match =~ s/^\S*\s/... / unless $match =~ m/^$search/i;
-				$match =~ s/\s\S*$/ .../ unless $match =~ m/$search$/i;
-			}
-			if ( $match eq $result->title ) {
-				$match = substr $result->body, 0, 100;
-				$match =~ s/\s\S+\s?$/ .../;
-			}
-			# Add the match string to the result
-			$result->{ match } = $match;
+	return unless my $search = $c->request->param( 'search' );
 
-			# Push the result onto the results array
-			push @$forum_posts, $result;
+	my @results = $c->model( 'DB::ForumPost' )->search({
+		-and => [
+			posted => { '<=' => \'current_timestamp' },
+			hidden => 0,
+			-or => [
+				title => { 'LIKE', '%'.$search.'%'},
+				body  => { 'LIKE', '%'.$search.'%'},
+			],
+		],
+	})->all;
+
+	my $forum_posts = [];
+	foreach my $result ( @results ) {
+		# Pull out the matching search term and its immediate context
+		my $match = '';
+		if ( $result->title =~ m/(.{0,50}$search.{0,50})/is ) {
+			$match = $1;
 		}
-		$c->stash->{ forum_results } = $forum_posts;
+		elsif ( $result->body =~ m/(.{0,50}$search.{0,50})/is ) {
+			$match = $1;
+		}
+		# Tidy up and mark the truncation
+		unless ( $match eq $result->title or $match eq $result->body ) {
+			$match =~ s/^\S*\s/... / unless $match =~ m/^$search/i;
+			$match =~ s/\s\S*$/ .../ unless $match =~ m/$search$/i;
+		}
+		if ( $match eq $result->title ) {
+			$match = substr $result->body, 0, 100;
+			$match =~ s/\s\S+\s?$/ .../;
+		}
+		# Add the match string to the result
+		$result->{ match } = $match;
+
+		# Push the result onto the results array
+		push @$forum_posts, $result;
 	}
+
+	$c->stash->{ forum_results } = $forum_posts;
+	return $forum_posts;
 }
 
 
